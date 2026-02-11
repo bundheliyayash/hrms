@@ -21,24 +21,23 @@ class DatabaseSeeder extends Seeder
      */
     public function run(): void
     {
+        // 1. System Configuration & Static Data
         $this->call([
-            // Phase 1: System Configuration (Must run first)
             SettingsSeeder::class,
             ShiftsSeeder::class,
-            
-            // Phase 2: User Interface
-            MenuSeeder::class,
-                        // Phase 3: Base Data (Creates users, clients, sites, employees)
-                CleaningServiceSeeder::class,
+        ]);
 
-                // Phase 4: Business Modules Data
-                ContractSeeder::class,
-                DailyAssignmentSeeder::class,
-                ClientInvoiceSeeder::class,
-                WorkerReplacementSeeder::class,
+        // 2. Authorization (Roles & Permissions)
+        $this->call(RbacSeeder::class);
 
-                // Phase 5: User Allocations (Must run AFTER users exist)
-                LeaveAllocationSeeder::class,
-            ]);
+        // 3. Administrative User (Dependent on Roles)
+        $this->call(AdminUserSeeder::class);
+
+        // 4. User Interface Structure
+        $this->call(MenuSeeder::class);
+
+        // 5. Operational Data (Dependent on Users/Employees)
+        // Runs only if employees exist (safe to keep)
+        $this->call(LeaveAllocationSeeder::class);
     }
 }

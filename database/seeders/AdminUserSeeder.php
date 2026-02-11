@@ -14,11 +14,23 @@ class AdminUserSeeder extends Seeder
      */
     public function run(): void
     {
-        User::create([
-            'name' => 'Admin User',
-            'email' => 'admin@hrms.com',
-            'password' => Hash::make('password'),
-            'role' => 'admin',
-        ]);
+        // Ensure Admin Role exists (RbacSeeder should have run)
+        $adminRole = \App\Models\Role::where('name', 'admin')->first();
+        
+        if (!$adminRole) {
+            $this->command->error('Admin Role not found! Ensure RbacSeeder runs before AdminUserSeeder.');
+            return;
+        }
+
+        User::firstOrCreate(
+            ['email' => 'admin@hrms.com'],
+            [
+                'name' => 'System Admin',
+                'password' => Hash::make('password'),
+                'role' => 'admin', // Legacy string column for quick checks
+                'role_id' => $adminRole->id, // Foreign key for RBAC
+                'status' => 'active',
+            ]
+        );
     }
 }

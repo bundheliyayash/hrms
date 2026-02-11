@@ -1,0 +1,6 @@
+{
+    "$schema": "https://www.schemastore.org/package.json",
+    "private": true,
+    "name": "hrms",
+    "description": "HRMS - No build tools required"
+}

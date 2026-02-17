@@ -29,18 +29,22 @@ class PayrollService
         // 2. Days in Month
         $totalDays = $date->daysInMonth;
 
-        // 3. Attendance Counts
-        $present = Attendance::where('user_id', $user->id)
+        // 3. Attendance Counts (Only counting completed sessions)
+        $presentDates = Attendance::where('user_id', $user->id)
             ->whereMonth('date', $month)
             ->whereYear('date', $year)
-            ->whereIn('status', ['present', 'late'])
-            ->count();
+            ->whereIn('status', ['present', 'late', 'early_out']) // Include early_out as payable
+            ->whereNotNull('clock_out')
+            ->pluck('date')
+            ->toArray();
             
-        $halfDays = Attendance::where('user_id', $user->id)
+        $halfDayDates = Attendance::where('user_id', $user->id)
             ->whereMonth('date', $month)
             ->whereYear('date', $year)
             ->where('status', 'half_day')
-            ->count();
+            ->whereNotNull('clock_out')
+            ->pluck('date')
+            ->toArray();
 
         // 4. Paid vs Unpaid Leaves (Approved)
         $approvedLeaves = Leave::where('user_id', $user->id)
@@ -50,7 +54,7 @@ class PayrollService
                       ->orWhereMonth('end_date', $month)->whereYear('end_date', $year);
             })->get();
             
-        $paidLeaveDays = 0;
+        $paidLeaveDates = [];
         $unpaidLeaveDays = 0;
 
         foreach($approvedLeaves as $leave) {
@@ -65,18 +69,29 @@ class PayrollService
             $effectiveStart = $start->greaterThan($monthStart) ? $start : $monthStart;
             $effectiveEnd = $end->lessThan($monthEnd) ? $end : $monthEnd;
             
-            $days = $leave->is_half_day ? 0.5 : ($effectiveStart->diffInDays($effectiveEnd) + 1);
-
-            if ($leave->leave_type === 'Unpaid Leave') {
-                $unpaidLeaveDays += $days;
+            if ($leave->is_half_day) {
+                // Half day leaves are tricky with distinct dates; we'll treat them as 0.5 credit later if no attendance
+                // For simplicity in distinct check, we only add full leaves here or handle separately
+                // But following user request for "maximum one credit", we collect dates.
+                if ($leave->leave_type !== 'Unpaid Leave') {
+                    $halfDayDates[] = $effectiveStart->format('Y-m-d');
+                } else {
+                    $unpaidLeaveDays += 0.5;
+                }
             } else {
-                $paidLeaveDays += $days;
+                for ($d = $effectiveStart->copy(); $d->lte($effectiveEnd); $d->addDay()) {
+                    if ($leave->leave_type === 'Unpaid Leave') {
+                        $unpaidLeaveDays++;
+                    } else {
+                        $paidLeaveDates[] = $d->format('Y-m-d');
+                    }
+                }
             }
         }
 
         // 5. Holiday Calculations
         $holidays = $this->holidayService->getHolidaysForMonth($user, $month, $year);
-        $paidHolidays = 0;
+        $paidHolidayDates = [];
         $unpaidHolidays = 0;
 
         foreach ($holidays as $holiday) {
@@ -91,22 +106,51 @@ class PayrollService
             $effectiveStart = $start->greaterThan($monthStart) ? $start : $monthStart;
             $effectiveEnd = $end->lessThan($monthEnd) ? $end : $monthEnd;
             
-            $days = $effectiveStart->diffInDays($effectiveEnd) + 1;
-
-            if ($holiday->type === 'unpaid') {
-                $unpaidHolidays += $days;
-            } else {
-                $paidHolidays += $days;
+            for ($d = $effectiveStart->copy(); $d->lte($effectiveEnd); $d->addDay()) {
+                if ($holiday->type === 'unpaid') {
+                    $unpaidHolidays++;
+                } else {
+                    $paidHolidayDates[] = $d->format('Y-m-d');
+                }
             }
         }
 
-        // 6. Payable Days
-        // Formula: Present + (HalfDay * 0.5) + PaidLeaves + PaidHolidays
-        $payableDays = $present + ($halfDays * 0.5) + $paidLeaveDays + $paidHolidays;
+        // 6. Payable Days - ENSURE UNIQUE DATES
+        // Step 1: Combine all full-day credits
+        $allFullCreditDates = array_unique(array_merge($presentDates, $paidLeaveDates, $paidHolidayDates));
+        
+        // Step 2: Remove Half-Day dates if they also exist in full credit (Attendance > Leave overlap)
+        $halfDayDates = array_diff($halfDayDates, $allFullCreditDates);
+        
+        $payableDays = count($allFullCreditDates) + (count($halfDayDates) * 0.5);
 
-        // 7. Salary Calculation
-        $perDaySalary = $totalDays > 0 ? ($basicSalary / $totalDays) : 0;
-        $baseEarnings = $perDaySalary * $payableDays;
+        // 7. Salary Calculation (Weighted Daily Proration)
+        $baseEarnings = 0;
+        $allPayableDates = array_merge($allFullCreditDates, $halfDayDates);
+        $allPayableDates = array_unique($allPayableDates);
+        
+        // Get all salary history applicable for this month or the last one before it
+        $salaryHistory = \App\Models\SalaryHistory::where('user_id', $user->id)
+            ->where('effective_date', '<=', Carbon::create($year, $month, 1)->endOfMonth())
+            ->orderBy('effective_date', 'asc')
+            ->get();
+
+        foreach ($allFullCreditDates as $dateStr) {
+            $date = Carbon::parse($dateStr);
+            $applicableSalary = $this->getApplicableSalary($salaryHistory, $date, $basicSalary);
+            $perDay = $date->daysInMonth > 0 ? ($applicableSalary / $date->daysInMonth) : 0;
+            $baseEarnings += $perDay;
+        }
+
+        foreach ($halfDayDates as $dateStr) {
+            $date = Carbon::parse($dateStr);
+            $applicableSalary = $this->getApplicableSalary($salaryHistory, $date, $basicSalary);
+            $perDay = $date->daysInMonth > 0 ? ($applicableSalary / $date->daysInMonth) : 0;
+            $baseEarnings += ($perDay * 0.5);
+        }
+
+        $perDaySalary = $totalDays > 0 ? ($basicSalary / $totalDays) : 0; // Fallback for display
+        // $baseEarnings = $perDaySalary * $payableDays; // Removed in favor of weighted calculation sopra
 
         // 8. Overtime (OT) Calculation
         $totalOtHours = 0;
@@ -160,11 +204,11 @@ class PayrollService
         return [
             'basic_salary' => $basicSalary,
             'total_days' => $totalDays,
-            'present_days' => $present,
-            'half_days' => $halfDays,
-            'paid_leave_days' => $paidLeaveDays,
+            'present_days' => count($presentDates),
+            'half_days' => count($halfDayDates),
+            'paid_leave_days' => count($paidLeaveDates),
             'unpaid_leave_days' => $unpaidLeaveDays,
-            'paid_holidays' => $paidHolidays,
+            'paid_holidays' => count($paidHolidayDates),
             'unpaid_holidays' => $unpaidHolidays,
             'payable_days' => $payableDays,
             'per_day_salary' => round($perDaySalary, 2),
@@ -174,5 +218,13 @@ class PayrollService
             'pf_amount' => $pfAmount,
             'esi_amount' => $esiAmount,
         ];
+    }
+
+    protected function getApplicableSalary($history, $date, $currentBasic)
+    {
+        // Find the latest revision that is <= the target date
+        $revision = $history->where('effective_date', '<=', $date)->last();
+        
+        return $revision ? $revision->amount : $currentBasic;
     }
 }

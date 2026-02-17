@@ -138,6 +138,17 @@ class AttendanceController extends Controller
             return redirect()->back()->with('error', 'You have already clocked in for today.');
         }
 
+        // Rule: Block clock-in if on approved leave
+        $onLeave = \App\Models\Leave::where('user_id', $user->id)
+            ->where('status', 'approved')
+            ->where('start_date', '<=', $date)
+            ->where('end_date', '>=', $date)
+            ->exists();
+        
+        if ($onLeave) {
+            return redirect()->back()->with('error', 'You cannot clock in while on an approved leave.');
+        }
+
         // Check employee status
         if ($user->status !== 'active') {
             return redirect()->back()->with('error', 'Your account is currently in-active. Please contact Admin.');

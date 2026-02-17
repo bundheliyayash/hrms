@@ -56,8 +56,14 @@ Route::middleware(['auth', 'menu.check'])->group(function () {
         // Manager specific route
         Route::get('manager/dashboard', [\App\Http\Controllers\Manager\DashboardController::class, 'index'])->name('manager.dashboard');
 
-        // Role Management
-        Route::resource('roles', \App\Http\Controllers\Admin\RoleController::class);
+        // Role Management (Admin Only)
+        Route::group(['middleware' => 'role:admin'], function() {
+            Route::resource('roles', \App\Http\Controllers\Admin\RoleController::class);
+            Route::get('/settings', [\App\Http\Controllers\Admin\SettingController::class, 'index'])->name('settings.index');
+            Route::post('/settings/profile-permissions', [\App\Http\Controllers\Admin\SettingController::class, 'updateProfilePermissions'])->name('settings.update-profile-permissions');
+            Route::post('/settings/general', [\App\Http\Controllers\Admin\SettingController::class, 'updateGeneralSettings'])->name('settings.update-general');
+            Route::post('/settings/notifications', [\App\Http\Controllers\Admin\SettingController::class, 'updateNotificationSettings'])->name('settings.update-notifications');
+        });
 
 
         Route::prefix('reports')->name('reports.')->group(function () {
@@ -75,11 +81,7 @@ Route::middleware(['auth', 'menu.check'])->group(function () {
                 ->name('system');
         });
 
-        // System Settings
-        Route::get('/settings', [\App\Http\Controllers\Admin\SettingController::class, 'index'])->name('settings.index');
-        Route::post('/settings/profile-permissions', [\App\Http\Controllers\Admin\SettingController::class, 'updateProfilePermissions'])->name('settings.update-profile-permissions');
-        Route::post('/settings/general', [\App\Http\Controllers\Admin\SettingController::class, 'updateGeneralSettings'])->name('settings.update-general');
-        Route::post('/settings/notifications', [\App\Http\Controllers\Admin\SettingController::class, 'updateNotificationSettings'])->name('settings.update-notifications');
+
 
         // Shift Management
         Route::resource('shifts', \App\Http\Controllers\Admin\ShiftController::class);

@@ -23,24 +23,44 @@ class LeaveController extends Controller
 
         $leave = Leave::findOrFail($id);
         $oldStatus = $leave->status;
+
+        // Security Fix: Prevent self-approval
+        if ($leave->user_id == auth()->id()) {
+            return redirect()->back()->with('error', 'You cannot approve or reject your own leave request.');
+        }
+
+        // Hard Lock Check: Prevent editing locked records
+        if ($leave->is_locked) {
+            return redirect()->back()->with('error', 'This leave record is locked (Payroll Finalized) and cannot be modified.');
+        }
+
         $leave->update([
             'status' => $request->status,
             'admin_comment' => $request->admin_comment
         ]);
 
-        // If approved, deduct from balance
+        // Calculate days for balance adjustment
+        $start = \Carbon\Carbon::parse($leave->start_date);
+        $end = \Carbon\Carbon::parse($leave->end_date);
+        $days = $leave->is_half_day ? 0.5 : ($start->diffInDays($end) + 1);
+
+        $allocation = \App\Models\LeaveAllocation::where('user_id', $leave->user_id)
+            ->where('leave_type', $leave->leave_type)
+            ->where('year', \Carbon\Carbon::parse($leave->start_date)->year)
+            ->first();
+
+        // 1. If transitioning TO approved, deduct from balance
         if ($request->status === 'approved' && $oldStatus !== 'approved') {
-            $start = \Carbon\Carbon::parse($leave->start_date);
-            $end = \Carbon\Carbon::parse($leave->end_date);
-            $days = $leave->is_half_day ? 0.5 : ($start->diffInDays($end) + 1);
-
-            $allocation = \App\Models\LeaveAllocation::where('user_id', $leave->user_id)
-                ->where('leave_type', $leave->leave_type)
-                ->where('year', \Carbon\Carbon::parse($leave->start_date)->year)
-                ->first();
-
             if ($allocation) {
+                // Safeguard: Prevent negative balance if needed (optional but recommended)
                 $allocation->increment('used_days', $days);
+            }
+        }
+
+        // 2. If transitioning FROM approved to anything else, restore balance
+        if ($oldStatus === 'approved' && $request->status !== 'approved') {
+            if ($allocation) {
+                $allocation->decrement('used_days', $days);
             }
         }
 

@@ -27,7 +27,7 @@ class ReportController extends Controller
 
     public function attendance()
     {
-        $attendances = Attendance::with('user')->orderBy('date', 'desc')->paginate(15);
+        $attendances = Attendance::with(['user' => function($q) { $q->withTrashed(); }])->orderBy('date', 'desc')->paginate(15);
         return view('admin.reports.attendance', compact('attendances'));
     }
 
@@ -39,7 +39,7 @@ class ReportController extends Controller
         $pendingLeaves = Leave::where('status', 'pending')->count();
         $rejectedLeaves = Leave::where('status', 'rejected')->count();
 
-        $leaves = Leave::with('user')->orderBy('created_at', 'desc')->paginate(15);
+        $leaves = Leave::with(['user' => function($q) { $q->withTrashed(); }])->orderBy('created_at', 'desc')->paginate(15);
         
         return view('admin.reports.leaves', compact('leaves', 'totalLeaves', 'approvedLeaves', 'pendingLeaves', 'rejectedLeaves'));
     }
@@ -47,7 +47,7 @@ class ReportController extends Controller
     public function payroll()
     {
         $totalPayrollPaid = Payroll::where('status', 'paid')->sum('net_salary');
-        $payrolls = Payroll::with('user')->orderBy('created_at', 'desc')->paginate(15);
+        $payrolls = Payroll::with(['user' => function($q) { $q->withTrashed(); }])->orderBy('created_at', 'desc')->paginate(15);
         
         return view('admin.reports.payroll', compact('payrolls', 'totalPayrollPaid'));
     }
@@ -58,7 +58,7 @@ class ReportController extends Controller
         $year = $request->get('year', date('Y'));
         $daysInMonth = Carbon::createFromDate($year, $month)->daysInMonth;
         
-        $employees = User::where('role', 'employee')->with(['attendances' => function($q) use ($month, $year) {
+        $employees = User::withTrashed()->where('role', 'employee')->with(['attendances' => function($q) use ($month, $year) {
             $q->whereMonth('date', $month)->whereYear('date', $year);
         }])->get();
 
@@ -76,7 +76,7 @@ class ReportController extends Controller
         $month = $request->get('month', date('F')); // Default current month name
         $year = $request->get('year', date('Y'));
 
-        $payrolls = Payroll::with('user.employeeDetail')
+        $payrolls = Payroll::with(['user' => fn($q) => $q->withTrashed(), 'user.employeeDetail'])
                            ->where('month', $month)
                            ->where('year', $year)
                            ->get();

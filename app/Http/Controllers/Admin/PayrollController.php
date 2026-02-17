@@ -74,27 +74,47 @@ class PayrollController extends Controller
             'paid_holidays' => 'nullable|numeric',
         ]);
 
-        Payroll::create([
-            'user_id' => $validated['user_id'],
-            'month' => $validated['month'], // Ensure format (e.g. 'January')
-            'year' => $validated['year'],
-            'basic_salary' => $validated['basic_salary'],
-            'allowances' => $validated['allowances'] ?? 0,
-            'deductions' => $validated['deductions'] ?? 0,
-            
-            'total_days' => $validated['total_days'],
-            'present_days' => $validated['present_days'],
-            'payable_days' => $validated['payable_days'],
-            'paid_holidays' => $validated['paid_holidays'] ?? 0,
-            'per_day_salary' => $validated['per_day_salary'],
-            'ot_hours' => $validated['ot_hours'] ?? 0,
-            'ot_amount' => $validated['ot_amount'] ?? 0,
-            'pf_amount' => $validated['pf_amount'] ?? 0,
-            'esi_amount' => $validated['esi_amount'] ?? 0,
-            
-            'net_salary' => $validated['net_salary'],
-            'status' => 'paid',
-        ]);
+        DB::transaction(function () use ($validated) {
+            $payroll = Payroll::create([
+                'user_id' => $validated['user_id'],
+                'month' => $validated['month'], // Ensure format (e.g. 'January')
+                'year' => $validated['year'],
+                'basic_salary' => $validated['basic_salary'],
+                'allowances' => $validated['allowances'] ?? 0,
+                'deductions' => $validated['deductions'] ?? 0,
+                
+                'total_days' => $validated['total_days'],
+                'present_days' => $validated['present_days'],
+                'payable_days' => $validated['payable_days'],
+                'paid_holidays' => $validated['paid_holidays'] ?? 0,
+                'per_day_salary' => $validated['per_day_salary'],
+                'ot_hours' => $validated['ot_hours'] ?? 0,
+                'ot_amount' => $validated['ot_amount'] ?? 0,
+                'pf_amount' => $validated['pf_amount'] ?? 0,
+                'esi_amount' => $validated['esi_amount'] ?? 0,
+                
+                'net_salary' => $validated['net_salary'],
+                'status' => 'paid',
+            ]);
+
+            // Hard Lock: Once Payroll is 'paid', lock all attendance and leaves for that period
+            $carbonDate = Carbon::createFromFormat('M Y', $validated['month'] . ' ' . $validated['year']);
+            $startDate = $carbonDate->copy()->startOfMonth()->format('Y-m-d');
+            $endDate = $carbonDate->copy()->endOfMonth()->format('Y-m-d');
+
+            Attendance::where('user_id', $validated['user_id'])
+                ->where('date', '>=', $startDate)
+                ->where('date', '<=', $endDate)
+                ->update(['is_locked' => true]);
+
+            Leave::where('user_id', $validated['user_id'])
+                ->where('status', 'approved')
+                ->where(function ($query) use ($startDate, $endDate) {
+                    $query->whereBetween('start_date', [$startDate, $endDate])
+                          ->orWhereBetween('end_date', [$startDate, $endDate]);
+                })
+                ->update(['is_locked' => true]);
+        });
 
         return redirect()->route('admin.payroll.index')->with('success', 'Payroll generated successfully.');
     }

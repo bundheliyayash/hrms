@@ -84,6 +84,16 @@ class EmployeeController extends Controller
                 'emergency_contact_name' => $validated['emergency_contact_name'] ?? null,
                 'emergency_contact_phone' => $validated['emergency_contact_phone'] ?? null,
             ]);
+
+            // Log Initial Salary
+            if (isset($validated['basic_salary'])) {
+                \App\Models\SalaryHistory::create([
+                    'user_id' => $user->id,
+                    'amount' => $validated['basic_salary'],
+                    'effective_date' => $validated['joining_date'] ?? now()->format('Y-m-d'),
+                    'change_reason' => 'Initial Salary'
+                ]);
+            }
         });
 
         return redirect()->route('admin.employees.index')->with('success', 'Employee created successfully.');
@@ -134,6 +144,8 @@ class EmployeeController extends Controller
             'role_id' => $validated['role_id'],
         ]);
 
+        $oldSalary = $employee->employeeDetail->basic_salary ?? 0;
+
         $employee->employeeDetail()->updateOrCreate(
             ['user_id' => $employee->id],
             [
@@ -153,6 +165,16 @@ class EmployeeController extends Controller
                 'emergency_contact_phone' => $validated['emergency_contact_phone'] ?? null,
             ]
         );
+
+        // Log Salary Revision if changed
+        if (isset($validated['basic_salary']) && $validated['basic_salary'] != $oldSalary) {
+            \App\Models\SalaryHistory::create([
+                'user_id' => $employee->id,
+                'amount' => $validated['basic_salary'],
+                'effective_date' => now()->format('Y-m-d'),
+                'change_reason' => 'Salary Revision'
+            ]);
+        }
 
         return redirect()->route('admin.employees.index')->with('success', 'Employee updated successfully.');
     }

@@ -9,6 +9,37 @@
         </a>
     </div>
 
+    <div class="card shadow-sm mb-4">
+        <div class="card-body">
+            <form action="{{ route('admin.reports.payroll.excel') }}" method="GET" class="row g-3 align-items-end">
+                <div class="col-md-4">
+                    <label class="form-label small fw-bold">Reporting Month</label>
+                    <select name="month" class="form-select" required>
+                        @foreach(range(1, 12) as $m)
+                            <option value="{{ $m }}" {{ date('m') == $m ? 'selected' : '' }}>
+                                {{ date('F', mktime(0, 0, 0, $m, 1)) }}
+                            </option>
+                        @endforeach
+                    </select>
+                </div>
+                <div class="col-md-3">
+                    <label class="form-label small fw-bold">Year</label>
+                    <select name="year" class="form-select" required>
+                        @foreach(range(date('Y')-2, date('Y')+1) as $y)
+                            <option value="{{ $y }}" {{ date('Y') == $y ? 'selected' : '' }}>{{ $y }}</option>
+                        @endforeach
+                    </select>
+                </div>
+                <div class="col-md-5">
+                    <button type="submit" class="btn btn-success w-100 text-white">
+                        <i class="bi bi-file-earmark-spreadsheet me-2"></i>Download Wage Register
+                    </button>
+                    <div class="form-text text-muted small mt-1">Select month/year to export payroll data.</div>
+                </div>
+            </form>
+        </div>
+    </div>
+
     <div class="card shadow-sm mb-4 border-success">
         <div class="card-body d-flex justify-content-between align-items-center">
             <div>

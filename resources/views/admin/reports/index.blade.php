@@ -1,6 +1,11 @@
 <x-admin-layout>
     <x-slot name="header">
-        Reports Dashboard
+        <div class="d-flex justify-content-between align-items-center">
+            <span>Reports Dashboard</span>
+            <a href="{{ route('admin.reports.guide') }}" class="btn btn-sm btn-outline-secondary">
+                <i class="bi bi-info-circle me-1"></i> View Report Logic Guide
+            </a>
+        </div>
     </x-slot>
 
     <div class="row g-4">
@@ -15,9 +20,6 @@
                     <p class="card-text text-muted">View daily attendance logs, late, and absent records for all employees.</p>
                     <div class="d-grid gap-2">
                         <a href="{{ route('admin.reports.attendance') }}" class="btn btn-outline-primary">View Log</a>
-                        <a href="{{ route('admin.reports.attendance.excel') }}" class="btn btn-primary text-white">
-                            <i class="bi bi-file-earmark-spreadsheet-fill me-2"></i>Download Excel Report
-                        </a>
                     </div>
                 </div>
             </div>
@@ -37,6 +39,7 @@
             </div>
         </div>
 
+        @if(Auth::user()->isAdmin())
         <!-- Payroll Report -->
         <div class="col-md-4">
             <div class="card h-100 shadow-sm border-0">
@@ -67,5 +70,6 @@
                 </div>
             </div>
         </div>
+        @endif
     </div>
 </x-admin-layout>

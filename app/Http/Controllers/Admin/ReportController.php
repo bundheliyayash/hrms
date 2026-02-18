@@ -25,10 +25,66 @@ class ReportController extends Controller
         return view('admin.reports.index');
     }
 
-    public function attendance()
+    public function attendance(Request $request)
     {
-        $attendances = Attendance::with(['user' => function($q) { $q->withTrashed(); }])->orderBy('date', 'desc')->paginate(15);
-        return view('admin.reports.attendance', compact('attendances'));
+        $month = $request->get('month', date('m'));
+        $year = $request->get('year', date('Y'));
+        $userId = $request->get('user_id');
+
+        $start = Carbon::createFromDate($year, $month, 1)->startOfMonth();
+        $end = Carbon::createFromDate($year, $month, 1)->endOfMonth();
+
+        if ($userId) {
+            // SINGLE EMPLOYEE VIEW: Fill Gaps
+            $targetUser = User::withTrashed()->findOrFail($userId);
+            $attendancesRaw = Attendance::where('user_id', $userId)
+                ->whereBetween('date', [$start->format('Y-m-d'), $end->format('Y-m-d')])
+                ->with(['user' => function($q) { $q->withTrashed(); }])
+                ->get();
+
+            $attendanceMap = $attendancesRaw->keyBy('date');
+            $allDates = [];
+            $current = $start->copy();
+            
+            while ($current <= $end) {
+                $dateStr = $current->format('Y-m-d');
+                if ($attendanceMap->has($dateStr)) {
+                    $allDates[] = $attendanceMap->get($dateStr);
+                } else {
+                    $status = ($current->isSunday() || $this->holidayService->isHoliday($targetUser, $dateStr)) ? 'holiday' : 'absent';
+                    $virtual = new Attendance(['user_id' => $userId, 'date' => $dateStr, 'status' => $status]);
+                    $virtual->setRelation('user', $targetUser);
+                    $allDates[] = $virtual;
+                }
+                $current->addDay();
+            }
+
+            // Convert to Collection and Paginate manually if needed, or just return all for the month
+            // Given it's max 31 rows, we can just return all or simple pagination
+            $attendances = collect($allDates)->sortByDesc('date');
+            // For consistency with Blade Link pagination, we can use a LengthAwarePaginator if we want, 
+            // but for 31 rows, simple is fine. Let's use simple for now. 
+            // Wait, the blade view uses $attendances->links().
+            $perPage = 31; 
+            $attendances = new \Illuminate\Pagination\LengthAwarePaginator(
+                $attendances->forPage($request->get('page', 1), $perPage),
+                $attendances->count(),
+                $perPage,
+                $request->get('page', 1),
+                ['path' => $request->url(), 'query' => $request->query()]
+            );
+        } else {
+            // MASTER SHEET: Standard Paginated List
+            $attendances = Attendance::with(['user' => function($q) { $q->withTrashed(); }])
+                ->whereBetween('date', [$start->format('Y-m-d'), $end->format('Y-m-d')])
+                ->orderBy('date', 'desc')
+                ->paginate(20)
+                ->withQueryString();
+        }
+        
+        $employees = User::withTrashed()->where('role', 'employee')->orderBy('name')->get();
+
+        return view('admin.reports.attendance', compact('attendances', 'month', 'year', 'employees', 'userId'));
     }
 
     public function leaves()
@@ -46,6 +102,7 @@ class ReportController extends Controller
 
     public function payroll()
     {
+        abort_if(!auth()->user()->isAdmin(), 403);
         $totalPayrollPaid = Payroll::where('status', 'paid')->sum('net_salary');
         $payrolls = Payroll::with(['user' => function($q) { $q->withTrashed(); }])->orderBy('created_at', 'desc')->paginate(15);
         
@@ -54,6 +111,7 @@ class ReportController extends Controller
 
     public function musterRoll(Request $request)
     {
+        abort_if(!auth()->user()->isAdmin(), 403);
         $month = $request->get('month', date('m'));
         $year = $request->get('year', date('Y'));
         $daysInMonth = Carbon::createFromDate($year, $month)->daysInMonth;
@@ -73,6 +131,7 @@ class ReportController extends Controller
 
     public function wageRegister(Request $request) 
     {
+        abort_if(!auth()->user()->isAdmin(), 403);
         $month = $request->get('month', date('F')); // Default current month name
         $year = $request->get('year', date('Y'));
 

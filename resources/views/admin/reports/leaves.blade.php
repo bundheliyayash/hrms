@@ -42,6 +42,26 @@
                     <div class="h3 fw-bold mb-0 text-danger">{{ $rejectedLeaves }}</div>
                 </div>
             </div>
+    </div>
+
+    <div class="card shadow-sm mb-4">
+        <div class="card-body">
+            <form action="{{ route('admin.reports.leaves.excel') }}" method="GET" class="row g-3 align-items-end">
+                <div class="col-md-4">
+                    <label class="form-label small fw-bold">From Date</label>
+                    <input type="date" name="start_date" class="form-select" value="{{ date('Y-m-01') }}" required>
+                </div>
+                <div class="col-md-4">
+                    <label class="form-label small fw-bold">To Date</label>
+                    <input type="date" name="end_date" class="form-select" value="{{ date('Y-m-t') }}" required>
+                </div>
+                <div class="col-md-4">
+                    <button type="submit" class="btn btn-warning w-100 text-dark">
+                        <i class="bi bi-file-earmark-spreadsheet me-2"></i>Download Leave Excel
+                    </button>
+                    <div class="form-text text-muted small mt-1">Export leaves within specified date range.</div>
+                </div>
+            </form>
         </div>
     </div>
 

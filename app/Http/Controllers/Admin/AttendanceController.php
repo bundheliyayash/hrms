@@ -53,17 +53,76 @@ class AttendanceController extends Controller
     public function showEmployee(Request $request)
     {
         $targetUser = User::findOrFail($request->user_id);
-        $month = $request->month ?? Carbon::now()->format('m');
-        $year = $request->year ?? Carbon::now()->format('Y');
-        $dateRange = Carbon::create($year, $month, 1);
-        $startDate = $dateRange->copy()->startOfMonth()->format('Y-m-d');
-        $endDate = $dateRange->copy()->endOfMonth()->format('Y-m-d');
+        
+        $startDate = $request->get('start_date');
+        $endDate = $request->get('end_date');
+        $month = $request->get('month');
+        $year = $request->get('year');
+
+        if ($startDate && $endDate) {
+            // Custom Range View
+            $month = null;
+            $year = null;
+        } else {
+            // Month View (Default or requested)
+            $defaultMonth = date('m');
+            $defaultYear = date('Y');
+            if (!$month && !$request->has('start_date') && date('d') <= 7) {
+                $lastMonth = Carbon::now()->subMonth();
+                $defaultMonth = $lastMonth->format('m');
+                $defaultYear = $lastMonth->format('Y');
+            }
+
+            $month = $month ?? $defaultMonth;
+            $year = $year ?? $defaultYear;
+            
+            $dateRange = Carbon::create($year, $month, 1);
+            $startDate = $dateRange->copy()->startOfMonth()->format('Y-m-d');
+            $endDate = $dateRange->copy()->endOfMonth()->format('Y-m-d');
+        }
 
         $attendances = Attendance::where('user_id', $targetUser->id)
                                  ->whereBetween('date', [$startDate, $endDate])
-                                 ->with('breaks')
-                                 ->latest()
+                                 ->with(['breaks', 'site.client'])
+                                 ->orderBy('date', 'desc')
                                  ->get();
+
+        // ---------------------------------------------------------
+        // GAP FILLING LOGIC
+        // ---------------------------------------------------------
+        $attendanceMap = $attendances->keyBy('date');
+        $allDates = [];
+        $current = Carbon::parse($startDate);
+        $end = Carbon::parse($endDate);
+        $holidayService = new \App\Services\HolidayService();
+
+        while ($current <= $end) {
+            $dateStr = $current->format('Y-m-d');
+            
+            if ($attendanceMap->has($dateStr)) {
+                $allDates[] = $attendanceMap->get($dateStr);
+            } else {
+                // Determine virtual status
+                $status = 'absent';
+                $isHoliday = $holidayService->isHoliday($targetUser, $dateStr);
+                
+                if ($isHoliday || $current->isSunday()) {
+                    $status = 'holiday';
+                }
+
+                $virtual = new Attendance([
+                    'user_id' => $targetUser->id,
+                    'date' => $dateStr,
+                    'status' => $status,
+                ]);
+                $virtual->setRelation('breaks', collect());
+                $allDates[] = $virtual;
+            }
+            $current->addDay();
+        }
+
+        // Re-sort descending (latest first as per UI standard)
+        $attendances = collect($allDates)->sortByDesc('date');
 
         // Summary Calculations
         $summary = [
@@ -77,21 +136,20 @@ class AttendanceController extends Controller
             'holiday' => 0,
         ];
 
-        $holidays = (new \App\Services\HolidayService())->getHolidaysForMonth($targetUser, $month, $year);
-        $summary['holiday'] = $holidays->sum(function($h) use ($startDate, $endDate) {
-            $start = $h->start_date->clamp($startDate, $endDate);
-            $end = ($h->end_date ?? $h->start_date)->clamp($startDate, $endDate);
-            return $start->diffInDays($end) + 1;
-        });
-
+        // Recalculate Summary (Actual + Virtual)
         foreach ($attendances as $att) {
-            $summary['working_hours'] += $att->duration_minutes;
-            $summary['clock_in_days']++;
-            if ($att->status === 'late') $summary['late_in']++;
-            if ($att->status === 'early_out') $summary['early_out']++;
+            if ($att->id) {
+                $summary['working_hours'] += $att->duration_minutes;
+                $summary['clock_in_days']++;
+                if ($att->status === 'late') $summary['late_in']++;
+                if ($att->status === 'early_out') $summary['early_out']++;
+            }
+            
+            if ($att->status === 'absent') $summary['absent']++;
+            if ($att->status === 'holiday') $summary['holiday']++;
         }
 
-        return view('admin.attendance.employee_view', compact('attendances', 'targetUser', 'summary', 'month', 'year'));
+        return view('admin.attendance.employee_view', compact('attendances', 'targetUser', 'summary', 'month', 'year', 'startDate', 'endDate'));
     }
 
     /**

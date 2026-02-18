@@ -79,20 +79,25 @@
 
                                 $bg = '';
                                 $content = '';
+                                $isSunday = Carbon\Carbon::parse($dateStr)->isSunday();
                                 
                                 if($status == 'present') { $bg = 'bg-success text-white'; $content = 'P'; $presentCount++; }
                                 elseif($status == 'late') { $bg = 'bg-warning text-dark'; $content = 'L'; $presentCount++; }
                                 elseif($status == 'half_day') { $bg = 'bg-info text-dark'; $content = 'HD'; $presentCount+=0.5; }
                                 elseif($status == 'on_leave') { $bg = 'bg-secondary text-white'; $content = 'LV'; }
-                                elseif($holiday) { 
+                                elseif($status == 'holiday' || $holiday || $isSunday) { 
                                     $bg = 'bg-info-subtle text-info fw-bold'; 
                                     $content = 'H'; 
-                                    if ($holiday->type !== 'unpaid') $holidayCount++; 
+                                    $holidayCount++; 
                                 }
-                                elseif($status == 'absent') { $bg = 'bg-danger text-white'; $content = 'A'; $absentCount++; }
-                                else { $bg = 'bg-light text-muted'; }
+                                else { 
+                                    // NO LOG FOUND: Treat as Absent
+                                    $bg = 'bg-danger-subtle text-danger'; 
+                                    $content = 'A'; 
+                                    $absentCount++; 
+                                }
                             @endphp
-                            <td class="{{ $bg }}" title="{{ $status ?? ($holiday ? $holiday->name : 'N/A') }}">{{ $content }}</td>
+                            <td class="{{ $bg }}" title="{{ $status ?? ($holiday ? $holiday->name : ($isSunday ? 'Sunday' : 'Absent')) }}">{{ $content }}</td>
                         @endfor
                         <td class="fw-bold text-success">{{ $presentCount }}</td>
                         <td class="fw-bold text-info">{{ $holidayCount }}</td>

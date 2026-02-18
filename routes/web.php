@@ -71,10 +71,16 @@ Route::middleware(['auth', 'menu.check'])->group(function () {
             Route::get('/attendance', [\App\Http\Controllers\Admin\ReportController::class, 'attendance'])->name('attendance');
             Route::get('/attendance/excel', [\App\Http\Controllers\Admin\AttendanceExportController::class, 'export'])->name('attendance.excel');
             Route::get('/leaves', [\App\Http\Controllers\Admin\ReportController::class, 'leaves'])->name('leaves');
+            Route::get('/leaves/excel', [\App\Http\Controllers\Admin\LeaveExportController::class, 'export'])->name('leaves.excel');
             Route::get('/payroll', [\App\Http\Controllers\Admin\ReportController::class, 'payroll'])->name('payroll');
+            Route::get('/payroll/excel', [\App\Http\Controllers\Admin\PayrollExportController::class, 'export'])->name('payroll.excel');
             Route::get('/muster-roll', [\App\Http\Controllers\Admin\ReportController::class, 'musterRoll'])->name('muster-roll');
             Route::get('/wage-register', [\App\Http\Controllers\Admin\ReportController::class, 'wageRegister'])->name('wage-register');
             
+            Route::get('/guide', function() {
+                return view('admin.reports.guide');
+            })->name('guide');
+
             // System Report - Admin Only
             Route::get('/system', [\App\Http\Controllers\Admin\SystemReportController::class, 'index'])
                 ->middleware('role:admin')

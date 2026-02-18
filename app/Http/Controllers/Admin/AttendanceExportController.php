@@ -20,17 +20,53 @@ class AttendanceExportController extends Controller
      */
     public function export(Request $request)
     {
-        $month = $request->input('month', Carbon::now()->format('m'));
-        $year = $request->input('year', Carbon::now()->format('Y'));
+        $request->validate([
+            'month' => 'required|numeric|between:1,12',
+            'year' => 'required|numeric|min:2020',
+        ]);
+
+        $month = (int) $request->input('month');
+        $year = (int) $request->input('year');
+        
+        $userId = $request->get('user_id');
         
         $start = Carbon::createFromDate($year, $month, 1)->startOfMonth();
         $end = Carbon::createFromDate($year, $month, 1)->endOfMonth();
         
-        $attendances = Attendance::with(['user', 'site.client', 'breaks'])
-            ->whereBetween('date', [$start->format('Y-m-d'), $end->format('Y-m-d')])
-            ->orderBy('date', 'asc')
-            ->orderBy('user_id', 'asc')
-            ->get();
+        if ($userId) {
+            $targetUser = User::withTrashed()->findOrFail($userId);
+            $attendancesRaw = Attendance::with(['user.employeeDetail', 'site.client', 'breaks'])
+                ->where('user_id', $userId)
+                ->whereBetween('date', [$start->format('Y-m-d'), $end->format('Y-m-d')])
+                ->orderBy('date', 'asc')
+                ->get();
+
+            $attendanceMap = $attendancesRaw->keyBy('date');
+            $allDates = [];
+            $current = $start->copy();
+            $holidayService = new \App\Services\HolidayService();
+            
+            while ($current <= $end) {
+                $dateStr = $current->format('Y-m-d');
+                if ($attendanceMap->has($dateStr)) {
+                    $allDates[] = $attendanceMap->get($dateStr);
+                } else {
+                    $status = ($current->isSunday() || $holidayService->isHoliday($targetUser, $dateStr)) ? 'holiday' : 'absent';
+                    $virtual = new Attendance(['user_id' => $userId, 'date' => $dateStr, 'status' => $status]);
+                    $virtual->setRelation('user', $targetUser);
+                    $virtual->setRelation('breaks', collect());
+                    $allDates[] = $virtual;
+                }
+                $current->addDay();
+            }
+            $attendances = collect($allDates);
+        } else {
+            $attendances = Attendance::with(['user.employeeDetail', 'site.client', 'breaks'])
+                ->whereBetween('date', [$start->format('Y-m-d'), $end->format('Y-m-d')])
+                ->orderBy('date', 'asc')
+                ->orderBy('user_id', 'asc')
+                ->get();
+        }
 
         if ($attendances->isEmpty()) {
             return redirect()->back()->with('error', 'No attendance data found for the selected period.');

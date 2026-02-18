@@ -209,7 +209,7 @@
         }
     </style>
 </head>
-<body class="{{ Auth::user()->role === 'admin' ? 'admin-theme' : '' }}">
+<body class="{{ (Auth::user() && Auth::user()->role === 'admin') ? 'admin-theme' : '' }}">
 
     <div id="wrapper">
         <!-- Sidebar -->

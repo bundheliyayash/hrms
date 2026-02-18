@@ -50,9 +50,13 @@
                             </div>
                         </form>
 
-                        <a href="{{ route('admin.attendance.index', ['user_id' => $targetUser->id, 'month' => \Carbon\Carbon::now()->subMonth()->format('m'), 'year' => \Carbon\Carbon::now()->subMonth()->format('Y')]) }}" 
-                           class="btn btn-sm btn-outline-info">
-                            Last Month
+                        <a href="{{ route('admin.attendance.index', ['user_id' => $targetUser->id, 'month' => \Carbon\Carbon::parse($startDate)->subMonth()->format('m'), 'year' => \Carbon\Carbon::parse($startDate)->subMonth()->format('Y')]) }}" 
+                           class="btn btn-sm btn-outline-secondary px-3 rounded-pill">
+                            <i class="bi bi-chevron-left me-1"></i> Prev Month
+                        </a>
+                        <a href="{{ route('admin.attendance.index', ['user_id' => $targetUser->id, 'month' => \Carbon\Carbon::parse($startDate)->addMonth()->format('m'), 'year' => \Carbon\Carbon::parse($startDate)->addMonth()->format('Y')]) }}" 
+                           class="btn btn-sm btn-outline-secondary px-3 rounded-pill">
+                            Next Month <i class="bi bi-chevron-right ms-1"></i>
                         </a>
                     </div>
                 </div>
@@ -134,9 +138,11 @@
     <!-- Timesheet Table -->
     <div class="card border-0 shadow-sm overflow-hidden mb-5">
         <div class="card-header bg-white py-3 border-0 d-flex justify-content-between align-items-center">
-            <h6 class="mb-0 fw-bold text-dark"><i class="bi bi-list-task me-2"></i>Daily Attendance Records</h6>
-            <div class="badge bg-light text-primary border-primary-subtle border px-3 py-2 rounded-pill small fw-medium">
-                 {{ \Carbon\Carbon::parse($startDate)->format('d M') }} – {{ \Carbon\Carbon::parse($endDate)->format('d M, Y') }}
+            <h6 class="mb-0 fw-bold text-dark"><i class="bi bi-calendar3 me-2 text-primary"></i>Attendance Log</h6>
+            <div class="d-flex gap-2">
+                <div class="badge bg-light text-primary border-primary-subtle border px-3 py-2 rounded-pill small fw-medium">
+                     {{ \Carbon\Carbon::parse($startDate)->format('M Y') }}
+                </div>
             </div>
         </div>
         <div class="card-body p-0">
@@ -201,33 +207,20 @@
                                 @endif
                             </td>
                             <td class="text-end px-4">
-                                @if(!$isVirtual)
-                                <div class="dropdown">
-                                    <button class="btn btn-light btn-sm rounded-circle shadow-none" data-bs-toggle="dropdown"><i class="bi bi-three-dots-vertical"></i></button>
-                                    <ul class="dropdown-menu dropdown-menu-end shadow border-0 mt-2">
-                                        <li><a class="dropdown-item py-2 small" href="#" data-bs-toggle="modal" data-bs-target="#editModal{{ $record->id }}"><i class="bi bi-pencil-square me-2 text-primary"></i> Manual Override</a></li>
-                                        <li><hr class="dropdown-divider"></li>
-                                        <li>
-                                            <form action="{{ route('admin.attendance.lock', $record->id) }}" method="POST">
-                                                @csrf
-                                                <button type="submit" class="dropdown-item py-2 small text-danger"><i class="bi bi-lock-fill me-2"></i> Lock Record</button>
-                                            </form>
-                                        </li>
-                                    </ul>
-                                </div>
-                                @else
-                                    <span class="text-muted small px-2">-</span>
-                                @endif
+                                @php $safeId = $record->id ?? \Carbon\Carbon::parse($record->date)->format('Ymd'); @endphp
+                                <button class="btn btn-outline-primary btn-sm px-3 rounded-pill" data-bs-toggle="modal" data-bs-target="#editModal{{ $safeId }}">
+                                    <i class="bi bi-pencil-square me-1"></i> Edit
+                                </button>
                             </td>
                         </tr>
 
-                        @if(!$isVirtual)
-                        <!-- Override Modal -->
-                        <div class="modal fade" id="editModal{{ $record->id }}" tabindex="-1">
+                        <!-- Override Modal (Works for both existing and virtual) -->
+                        <div class="modal fade" id="editModal{{ $safeId }}" tabindex="-1">
                             <div class="modal-dialog modal-dialog-centered">
-                                <form action="{{ route('admin.attendance.update', $record->id) }}" method="POST">
+                                <form action="{{ route('admin.attendance.update', $record->id ?? \Carbon\Carbon::parse($record->date)->format('Y-m-d')) }}" method="POST">
                                     @csrf
                                     @method('PATCH')
+                                    <input type="hidden" name="user_id" value="{{ $targetUser->id }}">
                                     <div class="modal-content border-0 shadow-lg" style="border-radius: 16px;">
                                         <div class="modal-header border-0 pb-0">
                                             <h5 class="modal-title fw-bold">Manual Correction</h5>
@@ -238,17 +231,19 @@
                                             <div class="row g-3">
                                                 <div class="col-6">
                                                     <label class="form-label small fw-bold text-muted">Clock In</label>
-                                                    <input type="time" name="clock_in" class="form-control" value="{{ $record->clock_in }}">
+                                                    <input type="time" name="clock_in" class="form-control" 
+                                                           value="{{ $record->clock_in ?? ($targetUser->employeeDetail->shift->clock_in_time ?? '') }}">
                                                 </div>
                                                 <div class="col-6">
                                                     <label class="form-label small fw-bold text-muted">Clock Out</label>
-                                                    <input type="time" name="clock_out" class="form-control" value="{{ $record->clock_out }}">
+                                                    <input type="time" name="clock_out" class="form-control" 
+                                                           value="{{ $record->clock_out ?? ($targetUser->employeeDetail->shift->clock_out_time ?? '') }}">
                                                 </div>
                                                 <div class="col-12">
                                                     <label class="form-label small fw-bold text-muted">Duty Status</label>
                                                     <select name="status" class="form-select">
-                                                        @foreach(['present', 'absent', 'late', 'early_out', 'half_day', 'missing', 'holiday'] as $status)
-                                                            <option value="{{ $status }}" {{ $record->status == $status ? 'selected' : '' }}>{{ strtoupper($status) }}</option>
+                                                        @foreach(['present', 'absent', 'late', 'early_out', 'half_day', 'missing', 'holiday'] as $st)
+                                                            <option value="{{ $st }}" {{ $record->status == $st ? 'selected' : '' }}>{{ strtoupper($st) }}</option>
                                                         @endforeach
                                                     </select>
                                                 </div>
@@ -260,13 +255,12 @@
                                         </div>
                                         <div class="modal-footer border-0 p-4 pt-0">
                                             <button type="button" class="btn btn-light rounded-pill px-4" data-bs-dismiss="modal">Cancel</button>
-                                            <button type="submit" class="btn btn-primary rounded-pill px-4">Apply Changes</button>
+                                            <button type="submit" class="btn btn-primary rounded-pill px-4">Save Changes</button>
                                         </div>
                                     </div>
                                 </form>
                             </div>
                         </div>
-                        @endif
                         @empty
                         <tr><td colspan="9" class="text-center py-5 text-muted">No attendance data found for this period.</td></tr>
                         @endforelse

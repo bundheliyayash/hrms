@@ -42,7 +42,7 @@ class ReportController extends Controller
                 ->with(['user' => function($q) { $q->withTrashed(); }])
                 ->get();
 
-            $attendanceMap = $attendancesRaw->keyBy('date');
+            $attendanceMap = $attendancesRaw->keyBy(fn($record) => $record->date->format('Y-m-d'));
             $allDates = [];
             $current = $start->copy();
             

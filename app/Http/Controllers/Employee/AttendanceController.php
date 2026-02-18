@@ -49,7 +49,7 @@ class AttendanceController extends Controller
             ->where('user_id', $user->id)
             ->whereBetween('date', [$start->format('Y-m-d'), $end->format('Y-m-d')]) // Still fetch all for safety
             ->get()
-            ->keyBy('date');
+            ->keyBy(fn($record) => $record->date->format('Y-m-d'));
         
         // Merge all dates with attendance records
         $attendances = collect($allDates)->map(function($date) use ($attendanceRecords, $user) {
@@ -70,9 +70,9 @@ class AttendanceController extends Controller
             return $dummyRecord;
         });
         
-        // Paginate results (Default 7 per page)
-        $perPage = $request->input('per_page', 7);
-        $perPage = in_array($perPage, [7, 20, 50, 100]) ? $perPage : 7;
+        // Paginate results (Default 31 per page for full month view)
+        $perPage = $request->input('per_page', 31);
+        $perPage = in_array($perPage, [7, 31, 50, 100]) ? $perPage : 31;
         $currentPage = $request->input('page', 1);
         $attendances = new \Illuminate\Pagination\LengthAwarePaginator(
             $attendances->forPage($currentPage, $perPage),

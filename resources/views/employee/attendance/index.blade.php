@@ -32,6 +32,17 @@
                     </div>
                 </form>
                 
+                <div class="d-flex gap-1 me-2">
+                    <a href="{{ route('employee.attendance.index', ['month' => \Carbon\Carbon::createFromDate($year, $month, 1)->subMonth()->format('m'), 'year' => \Carbon\Carbon::createFromDate($year, $month, 1)->subMonth()->format('Y')]) }}" 
+                       class="btn btn-outline-secondary btn-sm px-3 rounded-pill">
+                        <i class="bi bi-chevron-left me-1"></i> Prev
+                    </a>
+                    <a href="{{ route('employee.attendance.index', ['month' => \Carbon\Carbon::createFromDate($year, $month, 1)->addMonth()->format('m'), 'year' => \Carbon\Carbon::createFromDate($year, $month, 1)->addMonth()->format('Y')]) }}" 
+                       class="btn btn-outline-secondary btn-sm px-3 rounded-pill">
+                        Next <i class="bi bi-chevron-right ms-1"></i>
+                    </a>
+                </div>
+                
                 <button class="btn btn-primary btn-sm rounded-pill px-3" data-bs-toggle="modal" data-bs-target="#correctionModal">
                     <i class="bi bi-plus-circle me-1"></i> Request Correction
                 </button>
@@ -200,85 +211,65 @@
                     <thead>
                         <tr>
                             <th>Date</th>
-                            <th>Display Name</th>
-                            <th>Day Status</th>
-                            <th>Attendance Status</th>
-                            <th>Attendance Action</th>
-                            <th>Clock IN</th>
-                            <th>Clock OUT</th>
-                            <th>Total Time</th>
-                            <th>Break Hours</th>
-                            <th>Productive Hours</th>
+                            <th>Status/Day</th>
+                            <th>Attendance</th>
+                            <th>Clock IN / OUT</th>
+                            <th>Duration</th>
+                            <th>Break</th>
+                            <th>Productive</th>
                             <th>Location</th>
                             <th>Action</th>
                         </tr>
                     </thead>
                     <tbody>
                         @forelse($attendances as $record)
-                        <tr class="{{ !$record->exists ? 'table-secondary' : '' }}">
-                            <td class="fw-bold text-secondary">{{ \Carbon\Carbon::parse($record->date)->format('D d M, Y') }}</td>
-                            <td>{{ auth()->user()->name }}</td>
-                            <td><span class="day-status status-fd">FD</span></td>
+                        <tr class="{{ !$record->exists ? 'table-light opacity-75' : '' }}">
+                            <td class="small fw-bold text-dark">
+                                {{ \Carbon\Carbon::parse($record->date)->format('d M, Y') }}
+                                <div class="text-muted fs-xs">{{ \Carbon\Carbon::parse($record->date)->format('l') }}</div>
+                            </td>
+                            <td>
+                                <span class="badge bg-light text-primary border border-primary-subtle rounded-pill">FULL DAY</span>
+                            </td>
                             <td>
                                 @if($record->exists)
-                                    <span class="status-p">{{ $record->status == 'late' ? 'Late' : ucfirst($record->status) }}</span>
+                                    <span class="badge {{ $record->status == 'late' ? 'bg-warning text-dark' : 'bg-success' }} rounded-pill px-3">
+                                        {{ strtoupper($record->status) }}
+                                    </span>
                                 @else
-                                    <span class="badge bg-secondary">No Record</span>
+                                    <span class="badge bg-danger rounded-pill px-3">ABSENT</span>
                                 @endif
                             </td>
-                            <td>
-                                @if($record->exists && !$record->clock_out)
-                                    <span class="text-primary small fw-bold"><i class="bi bi-dot"></i> On Going</span>
-                                @elseif($record->exists)
-                                    <span class="text-muted small">Present (P)</span>
-                                @else
-                                    <span class="text-muted small">-</span>
-                                @endif
-                            </td>
-                            <td>
+                            <td class="small">
                                 @if($record->exists && $record->clock_in)
-                                    <span class="text-primary">{{ \Carbon\Carbon::parse($record->clock_in)->format('h:i A') }}</span>
-                                    @if($record->is_verified)
-                                        <i class="bi bi-check-circle-fill text-info small ms-1" title="Verified Location"></i>
-                                    @else
-                                        <i class="bi bi-exclamation-triangle-fill text-danger small ms-1" title="Unverified Location"></i>
-                                    @endif
+                                    <div class="fw-bold text-primary">{{ \Carbon\Carbon::parse($record->clock_in)->format('H:i') }} - {{ $record->clock_out ? \Carbon\Carbon::parse($record->clock_out)->format('H:i') : '...' }}</div>
                                 @else
-                                    <span class="text-muted">-</span>
+                                    <span class="text-muted">--:--</span>
                                 @endif
                             </td>
-                            <td>
-                                @if($record->exists && $record->clock_out)
-                                    <span class="text-primary">{{ \Carbon\Carbon::parse($record->clock_out)->format('h:i A') }}</span>
-                                    <i class="bi bi-check-circle-fill text-info small ms-1"></i>
-                                @else
-                                    <span class="text-muted">-</span>
-                                @endif
-                            </td>
-                            <td class="fw-bold">
+                            <td class="small">
                                 @if($record->exists && $record->clock_out)
                                     @php $totalMin = $record->duration_minutes + $record->breaks()->sum('duration_minutes'); @endphp
-                                    {{ floor($totalMin / 60) }}H : {{ $totalMin % 60 }}M
+                                    {{ floor($totalMin / 60) }}h {{ $totalMin % 60 }}m
                                 @else
-                                    <span class="text-muted">-</span>
+                                    -
                                 @endif
                             </td>
-                            <td>
+                            <td class="text-muted fs-xs">
                                 @if($record->exists)
-                                    @php $breakMin = $record->breaks()->sum('duration_minutes'); @endphp
-                                    {{ floor($breakMin / 60) }}H : {{ $breakMin % 60 }}M
+                                    {{ floor($record->breaks()->sum('duration_minutes') / 60) }}h {{ $record->breaks()->sum('duration_minutes') % 60 }}m
                                 @else
-                                    <span class="text-muted">-</span>
+                                    -
                                 @endif
                             </td>
-                            <td class="text-primary fw-bold">
+                            <td class="text-primary fw-bold small">
                                 @if($record->exists && $record->clock_out)
-                                    {{ floor($record->duration_minutes / 60) }}H : {{ $record->duration_minutes % 60 }}M
+                                    {{ floor($record->duration_minutes / 60) }}h {{ $record->duration_minutes % 60 }}m
                                 @else
-                                    <span class="text-muted">-</span>
+                                    -
                                 @endif
                             </td>
-                            <td>{{ $record->exists && $record->site ? $record->site->site_name : '-' }}</td>
+                            <td class="small text-truncate" style="max-width: 100px;">{{ $record->exists && $record->site ? $record->site->site_name : '-' }}</td>
                             <td>
                                 @if($record->exists)
                                     @php 

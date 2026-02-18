@@ -35,7 +35,8 @@ class PayrollService
             ->whereYear('date', $year)
             ->whereIn('status', ['present', 'late', 'early_out']) // Include early_out as payable
             ->whereNotNull('clock_out')
-            ->pluck('date')
+            ->get()
+            ->map(fn($att) => $att->date->format('Y-m-d'))
             ->toArray();
             
         $halfDayDates = Attendance::where('user_id', $user->id)
@@ -43,7 +44,8 @@ class PayrollService
             ->whereYear('date', $year)
             ->where('status', 'half_day')
             ->whereNotNull('clock_out')
-            ->pluck('date')
+            ->get()
+            ->map(fn($att) => $att->date->format('Y-m-d'))
             ->toArray();
 
         // 4. Paid vs Unpaid Leaves (Approved)
@@ -70,9 +72,6 @@ class PayrollService
             $effectiveEnd = $end->lessThan($monthEnd) ? $end : $monthEnd;
             
             if ($leave->is_half_day) {
-                // Half day leaves are tricky with distinct dates; we'll treat them as 0.5 credit later if no attendance
-                // For simplicity in distinct check, we only add full leaves here or handle separately
-                // But following user request for "maximum one credit", we collect dates.
                 if ($leave->leave_type !== 'Unpaid Leave') {
                     $halfDayDates[] = $effectiveStart->format('Y-m-d');
                 } else {
@@ -115,19 +114,18 @@ class PayrollService
             }
         }
 
-        // 6. Payable Days - ENSURE UNIQUE DATES
+        // 6. Payable Days - ENSURE UNIQUE DATES (Standardized Y-m-d strings)
         // Step 1: Combine all full-day credits
         $allFullCreditDates = array_unique(array_merge($presentDates, $paidLeaveDates, $paidHolidayDates));
         
         // Step 2: Remove Half-Day dates if they also exist in full credit (Attendance > Leave overlap)
-        $halfDayDates = array_diff($halfDayDates, $allFullCreditDates);
+        $halfDayDates = array_diff(array_unique($halfDayDates), $allFullCreditDates);
         
         $payableDays = count($allFullCreditDates) + (count($halfDayDates) * 0.5);
 
         // 7. Salary Calculation (Weighted Daily Proration)
         $baseEarnings = 0;
-        $allPayableDates = array_merge($allFullCreditDates, $halfDayDates);
-        $allPayableDates = array_unique($allPayableDates);
+        $allPayableDates = array_unique(array_merge($allFullCreditDates, $halfDayDates));
         
         // Get all salary history applicable for this month or the last one before it
         $salaryHistory = \App\Models\SalaryHistory::where('user_id', $user->id)

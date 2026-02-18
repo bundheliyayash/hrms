@@ -58,8 +58,8 @@ class Attendance extends Model
     {
         if (!$this->clock_in || !$this->clock_out) return 0;
 
-        $in = \Carbon\Carbon::parse($this->date . ' ' . $this->clock_in);
-        $out = \Carbon\Carbon::parse($this->date . ' ' . $this->clock_out);
+        $in = \Carbon\Carbon::parse($this->date->format('Y-m-d') . ' ' . $this->clock_in);
+        $out = \Carbon\Carbon::parse($this->date->format('Y-m-d') . ' ' . $this->clock_out);
 
         if ($out->lt($in)) {
             $out->addDay();

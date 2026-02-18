@@ -41,7 +41,7 @@ class AttendanceExportController extends Controller
                 ->orderBy('date', 'asc')
                 ->get();
 
-            $attendanceMap = $attendancesRaw->keyBy('date');
+            $attendanceMap = $attendancesRaw->keyBy(fn($record) => $record->date->format('Y-m-d'));
             $allDates = [];
             $current = $start->copy();
             $holidayService = new \App\Services\HolidayService();

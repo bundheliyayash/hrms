@@ -88,9 +88,9 @@ class AttendanceController extends Controller
                                  ->get();
 
         // ---------------------------------------------------------
-        // GAP FILLING LOGIC
+        // GAP FILLING LOGIC (Standardized Y-m-d keys)
         // ---------------------------------------------------------
-        $attendanceMap = $attendances->keyBy('date');
+        $attendanceMap = $attendances->keyBy(fn($record) => $record->date->format('Y-m-d'));
         $allDates = [];
         $current = Carbon::parse($startDate);
         $end = Carbon::parse($endDate);
@@ -153,8 +153,65 @@ class AttendanceController extends Controller
     }
 
     /**
-     * Show pending correction requests.
+     * Handle manual record creation or update.
      */
+    public function update(Request $request, $id)
+    {
+        // Check if $id is numeric (attendance ID) or a date string (Y-m-d)
+        $attendance = is_numeric($id) ? Attendance::find($id) : null;
+        $date = !is_numeric($id) ? $id : null;
+        $userId = $request->user_id;
+
+        if ($attendance && $attendance->is_locked) {
+            return redirect()->back()->with('error', 'This attendance record is locked and cannot be edited.');
+        }
+
+        $request->validate([
+            'clock_in' => 'nullable',
+            'clock_out' => 'nullable',
+            'status' => 'required|in:present,absent,late,early_out,half_day,missing,holiday',
+            'reason' => 'required|string|max:255',
+        ]);
+
+        if ($attendance) {
+            $attendance->update([
+                'clock_in' => $request->clock_in,
+                'clock_out' => $request->clock_out,
+                'status' => $request->status,
+            ]);
+            if ($attendance->clock_in && $attendance->clock_out) {
+                $attendance->update(['duration_minutes' => $attendance->duration]);
+            }
+        } else {
+            // Create new record for the date
+            $user = User::findOrFail($userId);
+            $site = $user->employeeDetail->site;
+            
+            $attendance = Attendance::create([
+                'user_id' => $userId,
+                'date' => $date,
+                'clock_in' => $request->clock_in,
+                'clock_out' => $request->clock_out,
+                'status' => $request->status,
+                'client_id' => $site->client_id ?? null,
+                'site_id' => $site->id ?? null,
+                'is_verified' => true,
+            ]);
+            if ($attendance->clock_in && $attendance->clock_out) {
+                $attendance->update(['duration_minutes' => $attendance->duration]);
+            }
+        }
+
+        \App\Helpers\NotificationHelper::send(
+            $attendance->user_id,
+            'Attendance Updated by Admin',
+            "Your attendance for {$attendance->date} has been updated by " . auth()->user()->name . ". Reason: {$request->reason}",
+            'info',
+            'attendance'
+        );
+
+        return redirect()->back()->with('success', 'Attendance record saved and employee notified.');
+    }
     public function requests()
     {
         $user = auth()->user();
@@ -282,48 +339,6 @@ class AttendanceController extends Controller
         return redirect()->back()->with('success', 'Request ' . $request->status . ' successfully.');
     }
 
-    /**
-     * Manual Override / Edit Attendance
-     */
-    public function update(Request $request, Attendance $attendance)
-    {
-        if ($attendance->is_locked) {
-            return redirect()->back()->with('error', 'This attendance record is locked and cannot be edited.');
-        }
-
-        $request->validate([
-            'clock_in' => 'nullable',
-            'clock_out' => 'nullable',
-            'status' => 'required|in:present,absent,late,early_out,half_day,missing',
-            'reason' => 'required|string|max:255', // Compulsory for Audit
-        ]);
-
-        $oldValues = $attendance->only(['clock_in', 'clock_out', 'status']);
-        
-        if ($request->clock_in && $request->clock_out) {
-            $attendance->clock_in = $request->clock_in;
-            $attendance->clock_out = $request->clock_out;
-            $durationMinutes = $attendance->duration;
-        }
-
-        $attendance->update([
-            'clock_in' => $request->clock_in,
-            'clock_out' => $request->clock_out,
-            'status' => $request->status,
-            'duration_minutes' => $durationMinutes,
-        ]);
-
-        // Send notification to employee
-        \App\Helpers\NotificationHelper::send(
-            $attendance->user_id,
-            'Attendance Updated by Admin',
-            "Your attendance for {$attendance->date} has been manually updated by " . auth()->user()->name . ". Reason: {$request->reason}",
-            'info',
-            'attendance'
-        );
-
-        return redirect()->back()->with('success', 'Attendance record updated and employee notified.');
-    }
 
     /**
      * Lock Attendance

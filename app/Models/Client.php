@@ -13,8 +13,13 @@ class Client extends Model
 
     protected $fillable = [
         'name', 'contact_person', 'email', 'phone', 'address', 
-        'is_active', 'service_start_date', 'service_end_date'
+        'is_active', 'service_start_date', 'service_end_date', 'user_id'
     ];
+
+    public function user()
+    {
+        return $this->belongsTo(\App\Models\User::class);
+    }
 
     public function sites()
     {

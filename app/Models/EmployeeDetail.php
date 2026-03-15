@@ -4,10 +4,11 @@ namespace App\Models;
 
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\SoftDeletes;
 
 class EmployeeDetail extends Model
 {
-    use HasFactory, \App\Traits\LogsActivity;
+    use HasFactory, \App\Traits\LogsActivity, SoftDeletes;
 
     protected $fillable = [
         'user_id',

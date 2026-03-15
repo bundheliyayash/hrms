@@ -44,6 +44,37 @@
                     </div>
                 </div>
 
+                <!-- Client Portal Access -->
+                <div class="mt-4 pt-4 border-top">
+                    <h6 class="fw-bold mb-3">
+                        <i class="bi bi-key-fill text-primary me-2"></i>Client Portal Access
+                    </h6>
+                    <p class="text-muted small">Allow this client to log into the portal and submit employee attendance for their sites.</p>
+
+                    <div class="row g-3">
+                        <div class="col-md-6">
+                            <label for="portal_email" class="form-label fw-bold">Portal Login Email</label>
+                            <input type="email" class="form-control @error('portal_email') is-invalid @enderror" 
+                                   name="portal_email" id="portal_email" 
+                                   value="{{ old('portal_email') }}"
+                                   placeholder="client@example.com">
+                            @error('portal_email')
+                                <div class="invalid-feedback">{{ $message }}</div>
+                            @enderror
+                            <small class="text-muted">Leave blank to skip portal access.</small>
+                        </div>
+                        <div class="col-md-6">
+                            <label for="portal_password" class="form-label fw-bold">Portal Password</label>
+                            <input type="password" class="form-control @error('portal_password') is-invalid @enderror" 
+                                   name="portal_password" id="portal_password" 
+                                   placeholder="Min 6 characters">
+                            @error('portal_password')
+                                <div class="invalid-feedback">{{ $message }}</div>
+                            @enderror
+                        </div>
+                    </div>
+                </div>
+
                 <div class="mt-4 text-end">
                     <a href="{{ route('admin.clients.index') }}" class="btn btn-secondary me-2">Cancel</a>
                     <button type="submit" class="btn btn-primary">Create Client</button>

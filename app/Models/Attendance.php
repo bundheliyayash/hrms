@@ -4,10 +4,11 @@ namespace App\Models;
 
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\SoftDeletes;
 
 class Attendance extends Model
 {
-    use HasFactory, \App\Traits\LogsActivity;
+    use HasFactory, \App\Traits\LogsActivity, SoftDeletes;
 
     protected $fillable = [
         'user_id',
@@ -24,6 +25,7 @@ class Attendance extends Model
         'longitude',
         'is_verified',
         'distance_detected',
+        'source',
     ];
 
     protected $casts = [

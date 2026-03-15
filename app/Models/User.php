@@ -55,6 +55,7 @@ class User extends Authenticatable
     const ROLE_ADMIN = 'admin';
     const ROLE_MANAGER = 'manager';
     const ROLE_EMPLOYEE = 'employee';
+    const ROLE_CLIENT = 'client';
 
     public function employeeDetail()
     {

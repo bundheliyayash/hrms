@@ -99,9 +99,51 @@
                         <input type="number" class="form-control bg-light text-danger border-danger-subtle" name="esi_amount" id="esi_amount" readonly>
                     </div>
 
+                    <div class="col-md-3">
+                        <label for="pt_amount" class="form-label text-danger small">Prof. Tax (PT) (-)</label>
+                        <input type="number" class="form-control border-danger-subtle" name="pt_amount" id="pt_amount" value="0" step="0.01">
+                    </div>
+
+                    <div class="col-md-3">
+                        <label for="advance_amount" class="form-label text-danger small">Advance / Fine (-)</label>
+                        <input type="number" class="form-control border-danger-subtle" name="advance_amount" id="advance_amount" value="0" step="0.01">
+                    </div>
+
+                    <div class="col-12"><hr class="text-muted"></div>
+
+                    <div class="col-md-3">
+                         <label for="hra" class="form-label small fw-bold">HRA (+)</label>
+                         <input type="number" step="0.01" name="hra" id="hra" class="form-control" value="0">
+                    </div>
+
+                    <div class="col-md-3">
+                         <label for="washing_allowance" class="form-label small fw-bold">Washing Allow. (+)</label>
+                         <input type="number" step="0.01" name="washing_allowance" id="washing_allowance" class="form-control" value="0">
+                    </div>
+
+                    <div class="col-md-6 text-end">
+                         <label class="form-label fw-bold text-muted small">Gross Salary (Before Deductions)</label>
+                         <input type="number" step="0.01" name="gross_salary" id="gross_salary" class="form-control bg-light fw-bold text-end" readonly>
+                    </div>
+
                     <div class="col-md-4">
                         <label class="form-label fw-bold text-primary display-6" style="font-size: 1.2rem;">Net Salary</label>
                         <input type="number" class="form-control form-control-lg border-primary fw-bold" name="net_salary" id="net_salary" step="0.01" readonly>
+                    </div>
+
+                    <div class="col-12"><hr class="text-muted"></div>
+
+                    <!-- Payout Splitting -->
+                    <div class="col-md-6">
+                        <label for="bank_amount" class="form-label fw-bold text-info"><i class="bi bi-bank me-1"></i> Bank Payout</label>
+                        <input type="number" class="form-control border-info fw-bold" name="bank_amount" id="bank_amount" step="0.01" value="0">
+                        <div class="form-text small">Amount to be paid via Bank Transfer</div>
+                    </div>
+
+                    <div class="col-md-6">
+                        <label for="cash_amount" class="form-label fw-bold text-warning"><i class="bi bi-cash-stack me-1"></i> Cash Payout</label>
+                        <input type="number" class="form-control border-warning fw-bold" name="cash_amount" id="cash_amount" step="0.01" value="0">
+                        <div class="form-text small">Amount to be paid in Cash</div>
                     </div>
                 </div>
 
@@ -213,20 +255,62 @@
             calculateNet();
         });
 
+        const bankAmountIn = document.getElementById('bank_amount');
+        const cashAmountIn = document.getElementById('cash_amount');
+        
+        const hraIn = document.getElementById('hra');
+        const washingIn = document.getElementById('washing_allowance');
+        const grossOut = document.getElementById('gross_salary');
+        const ptIn = document.getElementById('pt_amount');
+        const advanceIn = document.getElementById('advance_amount');
+
         function calculateNet() {
             const allow = parseFloat(allowancesIn.value) || 0;
-            const deduct = parseFloat(deductionsIn.value) || 0;
+            const hra = parseFloat(hraIn.value) || 0;
+            const washing = parseFloat(washingIn.value) || 0;
             const ot = parseFloat(otAmountOut.value) || 0;
+            
+            const gross = baseEarnings + ot + allow + hra + washing;
+            grossOut.value = gross.toFixed(2);
+
+            const deduct = parseFloat(deductionsIn.value) || 0;
             const pf = parseFloat(pfAmountOut.value) || 0;
             const esi = parseFloat(esiAmountOut.value) || 0;
-            const net = baseEarnings + ot + allow - deduct - pf - esi;
-            netSalaryOut.value = net.toFixed(2);
+            const pt = parseFloat(ptIn.value) || 0;
+            const advance = parseFloat(advanceIn.value) || 0;
+            
+            const totalDeductions = deduct + pf + esi + pt + advance;
+            const net = gross - totalDeductions;
+            
+            const netVal = net.toFixed(2);
+            netSalaryOut.value = netVal;
+            
+            // Default to Bank payout
+            bankAmountIn.value = netVal;
+            cashAmountIn.value = "0.00";
         }
+
+        // Handle Bank/Cash splitting manual changes
+        bankAmountIn.addEventListener('input', () => {
+            const net = parseFloat(netSalaryOut.value) || 0;
+            const bank = parseFloat(bankAmountIn.value) || 0;
+            cashAmountIn.value = Math.max(0, net - bank).toFixed(2);
+        });
+
+        cashAmountIn.addEventListener('input', () => {
+            const net = parseFloat(netSalaryOut.value) || 0;
+            const cash = parseFloat(cashAmountIn.value) || 0;
+            bankAmountIn.value = Math.max(0, net - cash).toFixed(2);
+        });
 
         allowancesIn.addEventListener('input', calculateNet);
         deductionsIn.addEventListener('input', calculateNet);
-        otHoursOut.addEventListener('input', calculateNet); // Manual override
-        otAmountOut.addEventListener('input', calculateNet); // Manual override
+        hraIn.addEventListener('input', calculateNet);
+        washingIn.addEventListener('input', calculateNet);
+        ptIn.addEventListener('input', calculateNet);
+        advanceIn.addEventListener('input', calculateNet);
+        otHoursOut.addEventListener('input', calculateNet);
+        otAmountOut.addEventListener('input', calculateNet);
 
     </script>
 </x-admin-layout>

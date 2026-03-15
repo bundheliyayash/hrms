@@ -24,6 +24,7 @@ Route::middleware(['auth', 'menu.check'])->group(function () {
         Route::resource('employees', \App\Http\Controllers\Admin\EmployeeController::class);
         Route::resource('leaves', \App\Http\Controllers\Admin\LeaveController::class)->only(['index', 'update']);
         Route::get('/payroll/stats', [\App\Http\Controllers\Admin\PayrollController::class, 'fetchStats'])->name('payroll.stats');
+        Route::get('/payroll/export', [\App\Http\Controllers\Admin\PayrollExportController::class, 'export'])->name('payroll.export');
         Route::resource('payroll', \App\Http\Controllers\Admin\PayrollController::class);
         Route::patch('clients/{client}/toggle-status', [\App\Http\Controllers\Admin\ClientController::class, 'toggleStatus'])->name('clients.toggle-status');
         Route::resource('clients', \App\Http\Controllers\Admin\ClientController::class);
@@ -151,6 +152,15 @@ Route::middleware(['auth', 'menu.check'])->group(function () {
         Route::get('profile', [\App\Http\Controllers\Employee\ProfileController::class, 'index'])->name('profile.index');
         Route::put('profile', [\App\Http\Controllers\Employee\ProfileController::class, 'update'])->name('profile.update');
         Route::post('profile/photo', [\App\Http\Controllers\Employee\ProfileController::class, 'updatePhoto'])->name('profile.updatePhoto');
+    });
+
+    // --------------------------------------------------------------------------------
+    // CLIENT PORTAL ROUTES
+    // --------------------------------------------------------------------------------
+    Route::middleware(['role:client'])->prefix('client')->name('client.')->group(function () {
+        Route::get('/dashboard', [\App\Http\Controllers\ClientPortal\ClientPortalController::class, 'dashboard'])->name('dashboard');
+        Route::get('/attendance/{site}', [\App\Http\Controllers\ClientPortal\ClientPortalController::class, 'attendanceForm'])->name('attendance.form');
+        Route::post('/attendance', [\App\Http\Controllers\ClientPortal\ClientPortalController::class, 'storeAttendance'])->name('attendance.store');
     });
 
     Route::post('/notifications/{notification}/read', [\App\Http\Controllers\NotificationController::class, 'markAsRead'])->name('notifications.read');

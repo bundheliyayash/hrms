@@ -20,6 +20,8 @@ class AttendanceExportController extends Controller
      */
     public function export(Request $request)
     {
+        abort_if(!auth()->user()->isAdmin() && auth()->user()->role !== 'manager', 403);
+
         $request->validate([
             'month' => 'required|numeric|between:1,12',
             'year' => 'required|numeric|min:2020',
@@ -152,15 +154,15 @@ class AttendanceExportController extends Controller
         $dataRange = 'A3:K' . ($row - 1);
         $sheet->getStyle($dataRange)->getBorders()->getAllBorders()->setBorderStyle(Border::BORDER_THIN);
 
-        // Save to stream
-        $writer = new Xlsx($spreadsheet);
+        $writer   = new Xlsx($spreadsheet);
         $fileName = 'Attendance_Report_' . $start->format('F_Y') . '.xlsx';
-        
-        header('Content-Type: application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
-        header('Content-Disposition: attachment;filename="' . $fileName . '"');
-        header('Cache-Control: max-age=0');
-        
-        $writer->save('php://output');
-        exit;
+
+        return response()->stream(function () use ($writer) {
+            $writer->save('php://output');
+        }, 200, [
+            'Content-Type'        => 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+            'Content-Disposition' => 'attachment; filename="' . $fileName . '"',
+            'Cache-Control'       => 'max-age=0',
+        ]);
     }
 }

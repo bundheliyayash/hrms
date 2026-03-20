@@ -129,17 +129,23 @@ class ReportController extends Controller
         return view('admin.reports.muster-roll', compact('employees', 'daysInMonth', 'month', 'year', 'holidays'));
     }
 
-    public function wageRegister(Request $request) 
+    public function wageRegister(Request $request)
     {
         abort_if(!auth()->user()->isAdmin(), 403);
-        $month = $request->get('month', date('F')); // Default current month name
-        $year = $request->get('year', date('Y'));
+
+        // Payroll stores month as full name (e.g. "January"). Support both name and numeric input.
+        $rawMonth  = $request->get('month', date('n'));
+        $year      = (int) $request->get('year', date('Y'));
+        $monthName = is_numeric($rawMonth)
+            ? Carbon::create()->month((int) $rawMonth)->format('F')
+            : ucfirst(strtolower($rawMonth));
 
         $payrolls = Payroll::with(['user' => fn($q) => $q->withTrashed(), 'user.employeeDetail'])
-                           ->where('month', $month)
-                           ->where('year', $year)
-                           ->get();
-                           
-        return view('admin.reports.wage-register', compact('payrolls', 'month', 'year'));
+            ->where('month', $monthName)
+            ->where('year',  $year)
+            ->get();
+
+        $month = $rawMonth; // pass original for view selects
+        return view('admin.reports.wage-register', compact('payrolls', 'month', 'year', 'monthName'));
     }
 }

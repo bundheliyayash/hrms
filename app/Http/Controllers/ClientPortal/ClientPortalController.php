@@ -3,54 +3,73 @@
 namespace App\Http\Controllers\ClientPortal;
 
 use App\Http\Controllers\Controller;
+use App\Models\Attendance;
 use App\Models\Client;
 use App\Models\ClientSite;
-use App\Models\Attendance;
+use App\Models\DailyAssignment;
 use App\Models\EmployeeDetail;
+use Carbon\Carbon;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Hash;
-use Carbon\Carbon;
 
 class ClientPortalController extends Controller
 {
-    /**
-     * Get the authenticated client's Client model.
-     */
-    private function getClient()
+    private function getClient(): Client
     {
         return Client::where('user_id', Auth::id())->with('sites')->firstOrFail();
     }
 
     /**
-     * Client Dashboard - show sites and today's attendance summary.
+     * Return IDs of all users the client is allowed to mark attendance for at a site+date.
+     * Combines permanently assigned employees (site_id on employee_details) and
+     * employees with a DailyAssignment for that site on that date.
+     */
+    private function getAllowedEmployeeIds(ClientSite $site, string $date): array
+    {
+        $permanentIds = EmployeeDetail::where('site_id', $site->id)
+            ->whereHas('user', fn($q) => $q->where('status', 'active'))
+            ->pluck('user_id')
+            ->toArray();
+
+        $assignedIds = DailyAssignment::where('site_id', $site->id)
+            ->where('assigned_date', $date)
+            ->whereNotIn('status', ['cancelled'])
+            ->pluck('user_id')
+            ->toArray();
+
+        return array_unique(array_merge($permanentIds, $assignedIds));
+    }
+
+    /**
+     * Client Dashboard – show sites and today's attendance summary.
      */
     public function dashboard()
     {
         $client = $this->getClient();
-        $today = Carbon::today()->format('Y-m-d');
+        $today  = Carbon::today()->format('Y-m-d');
 
         $sitesData = $client->sites()->where('is_active', true)->get()->map(function ($site) use ($today) {
-            $assignedCount = EmployeeDetail::where('site_id', $site->id)->count();
-            $presentCount = Attendance::where('site_id', $site->id)
+            $assignedCount = count($this->getAllowedEmployeeIds($site, $today));
+            $presentCount  = Attendance::where('site_id', $site->id)
                 ->where('date', $today)
                 ->whereIn('status', ['present', 'late', 'half_day'])
                 ->count();
 
             return [
-                'id' => $site->id,
-                'name' => $site->site_name,
-                'address' => $site->address,
+                'id'                 => $site->id,
+                'name'               => $site->site_name,
+                'address'            => $site->address,
                 'assigned_employees' => $assignedCount,
-                'present_today' => $presentCount,
-                'absent_today' => max(0, $assignedCount - $presentCount),
+                'present_today'      => $presentCount,
+                'absent_today'       => max(0, $assignedCount - $presentCount),
             ];
         });
 
         return view('client.dashboard', [
             'client' => $client,
-            'sites' => $sitesData,
-            'today' => Carbon::today()->format('d M Y'),
+            'sites'  => $sitesData,
+            'today'  => Carbon::today()->format('d M Y'),
         ]);
     }
 
@@ -61,32 +80,38 @@ class ClientPortalController extends Controller
     {
         $client = $this->getClient();
 
-        // Ensure the site belongs to this client
         if ($site->client_id !== $client->id) {
             abort(403, 'Unauthorized access to this site.');
         }
 
         $date = request('date', Carbon::today()->format('Y-m-d'));
+        if ($date > Carbon::today()->format('Y-m-d')) {
+            $date = Carbon::today()->format('Y-m-d');
+        }
 
-        // Get employees assigned to this site
-        $employees = EmployeeDetail::where('site_id', $site->id)
+        $allowedIds = $this->getAllowedEmployeeIds($site, $date);
+
+        // All employees this client can mark for this site+date
+        $employees = EmployeeDetail::whereIn('user_id', $allowedIds)
             ->with('user')
             ->get()
             ->filter(fn($emp) => $emp->user && $emp->user->status === 'active');
 
-        // Get existing attendance for this date and site
-        $existingAttendance = Attendance::where('site_id', $site->id)
+        // Existing records for this site+date
+        $existingRecords = Attendance::where('site_id', $site->id)
             ->where('date', $date)
-            ->pluck('user_id')
-            ->toArray();
+            ->with('user')
+            ->get();
+
+        $existingAttendance = $existingRecords->pluck('user_id')->toArray();
 
         return view('client.attendance', [
-            'client' => $client,
-            'site' => $site,
-            'employees' => $employees,
+            'client'             => $client,
+            'site'               => $site,
+            'employees'          => $employees,
             'existingAttendance' => $existingAttendance,
-            'existingRecords' => Attendance::where('site_id', $site->id)->where('date', $date)->with('user')->get(),
-            'date' => $date,
+            'existingRecords'    => $existingRecords,
+            'date'               => $date,
         ]);
     }
 
@@ -95,153 +120,169 @@ class ClientPortalController extends Controller
      */
     public function storeAttendance(Request $request)
     {
-        try {
-            $client = $this->getClient();
+        $client = $this->getClient();
 
-            $request->validate([
-                'site_id' => 'required|exists:client_sites,id',
-                'date' => 'required|date|before_or_equal:today',
-                'entries' => 'required|array|min:1',
-                'entries.*.user_id' => 'required|exists:users,id',
-                'entries.*.clock_in' => 'required|date_format:H:i',
-                'entries.*.clock_out' => 'nullable|date_format:H:i',
-            ]);
+        $request->validate([
+            'site_id'              => 'required|exists:client_sites,id',
+            'date'                 => 'required|date|before_or_equal:today',
+            'entries'              => 'required|array|min:1',
+            'entries.*.user_id'    => 'required|integer|exists:users,id',
+            'entries.*.clock_in'   => 'required|date_format:H:i',
+            'entries.*.clock_out'  => 'nullable|date_format:H:i',
+        ]);
 
-            // Verify site belongs to this client
-            $site = ClientSite::findOrFail($request->site_id);
-            if ($site->client_id !== $client->id) {
-                return redirect()->back()->with('error', 'Authentication Error: You are not authorized to manage this site.');
+        $site = ClientSite::findOrFail($request->site_id);
+
+        if ($site->client_id !== $client->id) {
+            abort(403, 'Unauthorized: site does not belong to your account.');
+        }
+
+        $date        = $request->date;
+        $allowedIds  = $this->getAllowedEmployeeIds($site, $date);
+        $created     = 0;
+        $skipped     = 0;
+
+        foreach ($request->entries as $entry) {
+            $userId = (int) $entry['user_id'];
+
+            // Security: only allow employees assigned to this site on this date
+            if (!in_array($userId, $allowedIds, true)) {
+                continue;
             }
 
-            $date = $request->date;
-            $created = 0;
-            $skipped = 0;
+            $exists = Attendance::where('user_id', $userId)
+                ->where('date', $date)
+                ->exists();
 
-            foreach ($request->entries as $entry) {
-                // Skip if attendance already exists for this employee on this date
-                $exists = Attendance::where('user_id', $entry['user_id'])
-                    ->where('date', $date)
-                    ->exists();
+            if ($exists) {
+                $skipped++;
+                continue;
+            }
 
-                if ($exists) {
-                    $skipped++;
-                    continue;
+            $durationMinutes = null;
+            if (!empty($entry['clock_out'])) {
+                $in  = Carbon::parse($date . ' ' . $entry['clock_in']);
+                $out = Carbon::parse($date . ' ' . $entry['clock_out']);
+                if ($out->lt($in)) {
+                    $out->addDay();
                 }
-
-                // Calculate duration
-                $durationMinutes = null;
-                if (!empty($entry['clock_out'])) {
-                    $in = Carbon::parse($date . ' ' . $entry['clock_in']);
-                    $out = Carbon::parse($date . ' ' . $entry['clock_out']);
-                    if ($out->lt($in)) {
-                        $out->addDay();
-                    }
-                    $durationMinutes = $in->diffInMinutes($out);
-                }
-
-                Attendance::create([
-                    'user_id' => $entry['user_id'],
-                    'site_id' => $request->site_id,
-                    'client_id' => $client->id,
-                    'date' => $date,
-                    'clock_in' => $entry['clock_in'],
-                    'clock_out' => $entry['clock_out'] ?? null,
-                    'duration_minutes' => $durationMinutes,
-                    'status' => 'present',
-                    'source' => 'client_portal',
-                    'is_verified' => true,
-                ]);
-
-                $created++;
+                $durationMinutes = $in->diffInMinutes($out);
             }
 
-            $message = "Success: {$created} Attendance records saved.";
-            if ($skipped > 0) {
-                $message .= " Note: {$skipped} records were skipped because they already existed.";
-            }
+            Attendance::create([
+                'user_id'          => $userId,
+                'site_id'          => $site->id,
+                'client_id'        => $client->id,
+                'date'             => $date,
+                'clock_in'         => $entry['clock_in'],
+                'clock_out'        => $entry['clock_out'] ?? null,
+                'duration_minutes' => $durationMinutes,
+                'status'           => 'present',
+                'source'           => 'client_portal',
+                'is_verified'      => true,
+            ]);
 
-            return redirect()
-                ->route('client.attendance.form', ['site' => $request->site_id, 'date' => $date])
-                ->with('success', $message);
-
-        } catch (\Illuminate\Validation\ValidationException $e) {
-            throw $e;
-        } catch (\Exception $e) {
-            return redirect()->back()
-                ->withInput()
-                ->with('error', 'Submission Failed: ' . $e->getMessage());
+            $created++;
         }
+
+        $message = "{$created} attendance record(s) saved.";
+        if ($skipped > 0) {
+            $message .= " {$skipped} skipped (already recorded).";
+        }
+
+        return redirect()
+            ->route('client.attendance.form', ['site' => $site->id, 'date' => $date])
+            ->with('success', $message);
     }
 
     /**
-     * Client Profile page.
+     * Update a single existing attendance record (client-submitted only).
      */
-    public function profile()
+    public function updateAttendance(Request $request, Attendance $attendance)
     {
-        try {
-            $client = $this->getClient();
-            $user = Auth::user();
+        $client = $this->getClient();
+        $site   = ClientSite::findOrFail($attendance->site_id);
 
-            return view('client.profile', [
-                'client' => $client,
-                'user' => $user,
-            ]);
-        } catch (\Exception $e) {
-            return redirect()->route('client.dashboard')->with('error', 'Error loading profile: ' . $e->getMessage());
+        if ($site->client_id !== $client->id) {
+            abort(403);
         }
-    }
 
-    /**
-     * Update client's password.
-     */
-    public function updatePassword(Request $request)
-    {
-        try {
-            $request->validate([
-                'current_password' => 'required',
-                'password' => 'required|min:6|confirmed',
-            ]);
+        if ($attendance->is_locked) {
+            return back()->with('error', 'This record is locked and cannot be edited.');
+        }
 
-            $user = Auth::user();
+        $request->validate([
+            'clock_in'  => 'required|date_format:H:i',
+            'clock_out' => 'nullable|date_format:H:i',
+        ]);
 
-            if (!Hash::check($request->current_password, $user->password)) {
-                return back()->withErrors(['current_password' => 'Invalid current password.']);
+        $durationMinutes = null;
+        if ($request->clock_out) {
+            $in  = Carbon::parse($attendance->date->format('Y-m-d') . ' ' . $request->clock_in);
+            $out = Carbon::parse($attendance->date->format('Y-m-d') . ' ' . $request->clock_out);
+            if ($out->lt($in)) {
+                $out->addDay();
             }
-
-            $user->update([
-                'password' => Hash::make($request->password),
-            ]);
-
-            return back()->with('success', 'Security Update: Password changed successfully.');
-        } catch (\Illuminate\Validation\ValidationException $e) {
-            throw $e;
-        } catch (\Exception $e) {
-            return back()->with('error', 'Password update failed: ' . $e->getMessage());
+            $durationMinutes = $in->diffInMinutes($out);
         }
+
+        $attendance->update([
+            'clock_in'         => $request->clock_in,
+            'clock_out'        => $request->clock_out,
+            'duration_minutes' => $durationMinutes,
+        ]);
+
+        return back()->with('success', 'Attendance updated.');
     }
 
     /**
-     * Attendance History - show all attendance records submitted by this client.
+     * Attendance history – all records submitted via this client portal.
      */
     public function attendanceHistory()
     {
-        try {
-            $client = $this->getClient();
-            $siteIds = $client->sites->pluck('id')->toArray();
+        $client  = $this->getClient();
+        $siteIds = $client->sites->pluck('id')->toArray();
 
-            $records = Attendance::whereIn('site_id', $siteIds)
-                ->where('source', 'client_portal')
-                ->with(['user.employeeDetail', 'site'])
-                ->latest('date')
-                ->paginate(20);
+        $records = Attendance::whereIn('site_id', $siteIds)
+            ->where('source', 'client_portal')
+            ->with(['user.employeeDetail', 'site'])
+            ->latest('date')
+            ->paginate(25);
 
-            return view('client.history', [
-                'client' => $client,
-                'records' => $records,
-            ]);
-        } catch (\Exception $e) {
-            return redirect()->route('client.dashboard')->with('error', 'Error loading history: ' . $e->getMessage());
+        return view('client.history', compact('client', 'records'));
+    }
+
+    /**
+     * Client profile page.
+     */
+    public function profile()
+    {
+        $client = $this->getClient();
+        return view('client.profile', [
+            'client' => $client,
+            'user'   => Auth::user(),
+        ]);
+    }
+
+    /**
+     * Change client password.
+     */
+    public function updatePassword(Request $request)
+    {
+        $request->validate([
+            'current_password' => 'required',
+            'password'         => 'required|min:8|confirmed',
+        ]);
+
+        /** @var \App\Models\User $user */
+        $user = Auth::user();
+
+        if (!Hash::check($request->current_password, $user->password)) {
+            return back()->withErrors(['current_password' => 'Current password is incorrect.']);
         }
+
+        $user->update(['password' => Hash::make($request->password)]);
+
+        return back()->with('success', 'Password changed successfully.');
     }
 }
-

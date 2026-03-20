@@ -14,6 +14,7 @@
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.10.0/font/bootstrap-icons.css">
     <!-- Google Fonts -->
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    @livewireStyles
 
     <style>
         body {
@@ -194,6 +195,16 @@
                         </a>
                     @endforeach
                 @endisset
+
+                <a href="{{ route('client.history') }}" class="list-group-item list-group-item-action {{ request()->routeIs('client.history') ? 'active' : '' }}">
+                    <i class="bi bi-clock-history"></i> Attendance History
+                </a>
+                <a href="{{ route('client.profile') }}" class="list-group-item list-group-item-action {{ request()->routeIs('client.profile') ? 'active' : '' }}">
+                    <i class="bi bi-person-circle"></i> My Profile
+                </a>
+                <a href="{{ route('client.manual') }}" class="list-group-item list-group-item-action {{ request()->routeIs('client.manual') ? 'active' : '' }}">
+                    <i class="bi bi-book"></i> User Manual
+                </a>
             </div>
 
             <div class="sidebar-footer">
@@ -260,6 +271,7 @@
 
     <!-- Bootstrap 5 JS -->
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    @livewireScripts
     <script>
         const sidebarToggle = document.getElementById('sidebarToggle');
         if (sidebarToggle) {

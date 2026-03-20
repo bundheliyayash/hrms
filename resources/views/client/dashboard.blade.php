@@ -110,9 +110,14 @@
                         </div>
                     </div>
 
-                    <a href="{{ route('client.attendance.form', $site['id']) }}" class="btn btn-primary btn-sm w-100 rounded-pill">
-                        <i class="bi bi-pencil-square me-1"></i> Mark Attendance
-                    </a>
+                    <div class="d-flex gap-2">
+                        <a href="{{ route('client.attendance.form', $site['id']) }}" class="btn btn-primary btn-sm rounded-pill flex-grow-1">
+                            <i class="bi bi-pencil-square me-1"></i> Mark Today
+                        </a>
+                        <a href="{{ route('client.attendance.monthly', $site['id']) }}" class="btn btn-outline-primary btn-sm rounded-pill" title="Monthly Bulk Upload">
+                            <i class="bi bi-calendar-month"></i>
+                        </a>
+                    </div>
                 </div>
             </div>
         @empty

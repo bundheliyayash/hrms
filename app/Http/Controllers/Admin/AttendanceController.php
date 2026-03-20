@@ -17,6 +17,7 @@ class AttendanceController extends Controller
     public function index(Request $request)
     {
         $date = $request->date ?? Carbon::today()->format('Y-m-d');
+        /** @var \App\Models\User $user */
         $user = auth()->user();
 
         // If it's a specific employee view
@@ -157,20 +158,34 @@ class AttendanceController extends Controller
      */
     public function update(Request $request, $id)
     {
+        /** @var \App\Models\User $handler */
+        $handler = auth()->user();
+
         // Check if $id is numeric (attendance ID) or a date string (Y-m-d)
         $attendance = is_numeric($id) ? Attendance::find($id) : null;
         $date = !is_numeric($id) ? $id : null;
         $userId = $request->user_id;
+
+        // Managers may only edit attendance for their subordinates
+        if ($handler->role === 'manager') {
+            $targetUserId = $attendance ? $attendance->user_id : $userId;
+            $isSubordinate = \App\Models\EmployeeDetail::where('user_id', $targetUserId)
+                ->where('manager_id', $handler->id)
+                ->exists();
+            if (!$isSubordinate) {
+                return redirect()->back()->with('error', 'Unauthorized: you can only edit attendance for your subordinates.');
+            }
+        }
 
         if ($attendance && $attendance->is_locked) {
             return redirect()->back()->with('error', 'This attendance record is locked and cannot be edited.');
         }
 
         $request->validate([
-            'clock_in' => 'nullable',
-            'clock_out' => 'nullable',
-            'status' => 'required|in:present,absent,late,early_out,half_day,missing,holiday',
-            'reason' => 'required|string|max:255',
+            'clock_in'  => 'nullable|date_format:H:i,H:i:s',
+            'clock_out' => 'nullable|date_format:H:i,H:i:s',
+            'status'    => 'required|in:present,absent,late,early_out,half_day,missing,holiday',
+            'reason'    => 'required|string|max:500',
         ]);
 
         if ($attendance) {
@@ -205,7 +220,7 @@ class AttendanceController extends Controller
         \App\Helpers\NotificationHelper::send(
             $attendance->user_id,
             'Attendance Updated by Admin',
-            "Your attendance for {$attendance->date} has been updated by " . auth()->user()->name . ". Reason: {$request->reason}",
+            "Your attendance for {$attendance->date} has been updated by " . $handler->name . ". Reason: {$request->reason}",
             'info',
             'attendance'
         );
@@ -214,6 +229,7 @@ class AttendanceController extends Controller
     }
     public function requests()
     {
+        /** @var \App\Models\User $user */
         $user = auth()->user();
         $query = AttendanceCorrection::with(['user', 'attendance'])->where('status', 'pending');
 
@@ -238,6 +254,7 @@ class AttendanceController extends Controller
             'admin_remark' => 'nullable|string|max:500',
         ]);
 
+        /** @var \App\Models\User $handler */
         $handler = auth()->user();
 
         $correction->update([

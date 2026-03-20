@@ -134,69 +134,10 @@
         </div>
     </div>
 
-    <!-- Clock In/Out Live Control -->
+    <!-- Clock In/Out Live Control (Livewire) -->
     <div class="row mb-4">
-        <div class="col-12">
-            <div class="card border-0 shadow-sm overflow-hidden" style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);">
-                <div class="card-body p-4 text-white">
-                    <div class="row align-items-center">
-                        <div class="col-md-8">
-                            @if($todayAttendance)
-                                <h4 class="fw-bold mb-1">
-                                    Status: <span class="text-warning">{{ $todayAttendance->clock_out ? 'Completed' : 'On-Going' }}</span>
-                                </h4>
-                                <p class="mb-0 opacity-75">
-                                    Date: {{ date('D, d M Y') }} | In: {{ \Carbon\Carbon::parse($todayAttendance->clock_in)->format('h:i A') }}
-                                    @if($todayAttendance->clock_out) | Out: {{ \Carbon\Carbon::parse($todayAttendance->clock_out)->format('h:i A') }} @endif
-                                </p>
-                            @else
-                                <h4 class="fw-bold mb-1">Status: <span class="text-light">Not Started</span></h4>
-                                <p class="mb-0 opacity-75 text-white">Assigned Site: {{ $assignedSite->site_name ?? 'None' }}</p>
-                            @endif
-                        </div>
-                        <div class="col-md-4 text-md-end mt-3 mt-md-0">
-                            @if($todayAttendance)
-                                @if(!$todayAttendance->clock_out)
-                                    @php $onBreak = $todayAttendance->breaks()->whereNull('break_end')->exists(); @endphp
-                                    <div class="d-flex gap-2 justify-content-md-end">
-                                        @if($onBreak)
-                                            <form action="{{ route('employee.attendance.breakEnd') }}" method="POST">
-                                                @csrf
-                                                <button type="submit" class="btn btn-warning rounded-pill px-4">End Break</button>
-                                            </form>
-                                        @else
-                                            <form action="{{ route('employee.attendance.breakStart') }}" method="POST">
-                                                @csrf
-                                                <button type="submit" class="btn btn-outline-light rounded-pill px-4">Start Break</button>
-                                            </form>
-                                            <form action="{{ route('employee.attendance.clockOut') }}" method="POST">
-                                                @csrf
-                                                <button type="submit" class="btn btn-danger rounded-pill px-4" onclick="return confirm('Ready to Clock Out?')">Clock Out</button>
-                                            </form>
-                                        @endif
-                                    </div>
-                                @endif
-                            @else
-                                @if($assignedSite)
-                                    <div id="location-spinner" class="d-none">
-                                        <div class="spinner-border spinner-border-sm text-light" role="status"></div>
-                                        <span class="ms-2 small">Locating...</span>
-                                    </div>
-                                    <form action="{{ route('employee.attendance.clockIn') }}" method="POST" id="clock-in-form" class="d-none">
-                                        @csrf
-                                        <input type="hidden" name="latitude" id="latitude">
-                                        <input type="hidden" name="longitude" id="longitude">
-                                        <button type="submit" class="btn btn-light text-primary rounded-pill px-5 fw-bold">Clock In Now</button>
-                                    </form>
-                                    <button id="get-location-btn" class="btn btn-light text-primary rounded-pill px-5 fw-bold shadow">
-                                        <i class="bi bi-geo-alt-fill me-2"></i> Detect & Start
-                                    </button>
-                                @endif
-                            @endif
-                        </div>
-                    </div>
-                </div>
-            </div>
+        <div class="col-md-5 col-lg-4">
+            @livewire('employee-clock-panel')
         </div>
     </div>
 

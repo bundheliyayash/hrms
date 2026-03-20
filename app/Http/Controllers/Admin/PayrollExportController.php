@@ -39,7 +39,7 @@ class PayrollExportController extends Controller
     {
         $monthName = Carbon::create()->month($monthNum)->format('F');
         $payrolls = Payroll::with(['user.employeeDetail'])
-            ->where('month', $monthNum)
+            ->where('month', $monthName)
             ->where('year', $year)
             ->orderBy('id', 'asc')
             ->get();
@@ -78,13 +78,13 @@ class PayrollExportController extends Controller
             $row++;
         }
 
-        $this->finishAndDownload($spreadsheet, 'Salary_Report_' . $monthName . '_' . $year . '.xlsx', 'A2:H' . ($row-1));
+        return $this->finishAndDownload($spreadsheet, 'Salary_Report_' . $monthName . '_' . $year . '.xlsx', 'A2:H' . ($row-1));
     }
 
     private function exportBigBasket($monthNum, $year)
     {
         $monthName = Carbon::create()->month($monthNum)->format('F');
-        $payrolls = Payroll::with(['user.employeeDetail'])->where('month', $monthNum)->where('year', $year)->get();
+        $payrolls = Payroll::with(['user.employeeDetail'])->where('month', $monthName)->where('year', $year)->get();
         
         $spreadsheet = new Spreadsheet();
         $sheet = $spreadsheet->getActiveSheet();
@@ -106,14 +106,14 @@ class PayrollExportController extends Controller
             $row++;
         }
 
-        $this->finishAndDownload($spreadsheet, 'BB_Salary_'.$monthName.'_'.$year.'.xlsx', 'A2:I'.($row-1));
+        return $this->finishAndDownload($spreadsheet, 'BB_Salary_'.$monthName.'_'.$year.'.xlsx', 'A2:I'.($row-1));
     }
 
     private function exportWageMuster($monthNum, $year)
     {
         $monthName = Carbon::create()->month($monthNum)->format('F');
-        $payrolls = Payroll::with(['user.employeeDetail'])->where('month', $monthNum)->where('year', $year)->get();
-        
+        $payrolls = Payroll::with(['user.employeeDetail'])->where('month', $monthName)->where('year', $year)->get();
+
         $spreadsheet = new Spreadsheet();
         $sheet = $spreadsheet->getActiveSheet();
         $sheet->setCellValue('A1', 'Wage Muster for ' . $monthName . '-' . $year);
@@ -139,7 +139,7 @@ class PayrollExportController extends Controller
             $row++;
         }
 
-        $this->finishAndDownload($spreadsheet, 'Wage_Muster_'.$monthName.'_'.$year.'.xlsx', 'A2:L'.($row-1));
+        return $this->finishAndDownload($spreadsheet, 'Wage_Muster_'.$monthName.'_'.$year.'.xlsx', 'A2:L'.($row-1));
     }
 
     private function exportAttendanceSheet($monthNum, $year)
@@ -185,10 +185,10 @@ class PayrollExportController extends Controller
         }
 
         $lastCol = \PhpOffice\PhpSpreadsheet\Cell\Coordinate::stringFromColumnIndex($daysInMonth + 2);
-        $this->finishAndDownload($spreadsheet, 'Attendance_Sheet.xlsx', 'A2:' . $lastCol . ($row-1));
+        return $this->finishAndDownload($spreadsheet, 'Attendance_Sheet.xlsx', 'A2:' . $lastCol . ($row-1));
     }
 
-    private function finishAndDownload($spreadsheet, $fileName, $styleRange)
+    private function finishAndDownload($spreadsheet, string $fileName, string $styleRange)
     {
         $sheet = $spreadsheet->getActiveSheet();
         $sheet->getStyle($styleRange)->getBorders()->getAllBorders()->setBorderStyle(Border::BORDER_THIN);
@@ -196,11 +196,15 @@ class PayrollExportController extends Controller
             $sheet->getColumnDimension($col)->setAutoSize(true);
         }
 
-        $writer = new Xlsx($spreadsheet);
-        header('Content-Type: application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
-        header('Content-Disposition: attachment;filename="' . $fileName . '"');
-        header('Cache-Control: max-age=0');
-        $writer->save('php://output');
-        exit;
+        $writer   = new Xlsx($spreadsheet);
+        $safeName = preg_replace('/[^A-Za-z0-9_.\-]/', '_', $fileName);
+
+        return response()->stream(function () use ($writer) {
+            $writer->save('php://output');
+        }, 200, [
+            'Content-Type'        => 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+            'Content-Disposition' => 'attachment; filename="' . $safeName . '"',
+            'Cache-Control'       => 'max-age=0',
+        ]);
     }
 }

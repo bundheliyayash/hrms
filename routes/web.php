@@ -77,10 +77,17 @@ Route::middleware(['auth', 'menu.check'])->group(function () {
             Route::get('/payroll/excel', [\App\Http\Controllers\Admin\PayrollExportController::class, 'export'])->name('payroll.excel');
             Route::get('/muster-roll', [\App\Http\Controllers\Admin\ReportController::class, 'musterRoll'])->name('muster-roll');
             Route::get('/wage-register', [\App\Http\Controllers\Admin\ReportController::class, 'wageRegister'])->name('wage-register');
-            
+
+            // Client-wise reports (salary, attendance, wage muster)
+            Route::get('/client-export', [\App\Http\Controllers\Admin\ClientReportExportController::class, 'export'])->name('client-export');
+
             Route::get('/guide', function() {
                 return view('admin.reports.guide');
             })->name('guide');
+
+            Route::get('/admin-manual', function() {
+                return view('admin.docs.admin-manual');
+            })->name('admin-manual');
 
             // System Report - Admin Only
             Route::get('/system', [\App\Http\Controllers\Admin\SystemReportController::class, 'index'])
@@ -161,6 +168,18 @@ Route::middleware(['auth', 'menu.check'])->group(function () {
         Route::get('/dashboard', [\App\Http\Controllers\ClientPortal\ClientPortalController::class, 'dashboard'])->name('dashboard');
         Route::get('/attendance/{site}', [\App\Http\Controllers\ClientPortal\ClientPortalController::class, 'attendanceForm'])->name('attendance.form');
         Route::post('/attendance', [\App\Http\Controllers\ClientPortal\ClientPortalController::class, 'storeAttendance'])->name('attendance.store');
+        Route::patch('/attendance/{attendance}', [\App\Http\Controllers\ClientPortal\ClientPortalController::class, 'updateAttendance'])->name('attendance.update');
+        // Day-wise Excel template download + upload
+        Route::get('/attendance/{site}/template', [\App\Http\Controllers\ClientPortal\ClientAttendanceImportController::class, 'downloadTemplate'])->name('attendance.template');
+        Route::post('/attendance/upload', [\App\Http\Controllers\ClientPortal\ClientAttendanceImportController::class, 'upload'])->name('attendance.upload');
+        // Monthly bulk upload
+        Route::get('/attendance/{site}/monthly', [\App\Http\Controllers\ClientPortal\ClientAttendanceImportController::class, 'monthlyPage'])->name('attendance.monthly');
+        Route::get('/attendance/{site}/monthly-template', [\App\Http\Controllers\ClientPortal\ClientAttendanceImportController::class, 'downloadMonthlyTemplate'])->name('attendance.monthly-template');
+        Route::post('/attendance/upload-monthly', [\App\Http\Controllers\ClientPortal\ClientAttendanceImportController::class, 'uploadMonthly'])->name('attendance.upload-monthly');
+        Route::get('/history', [\App\Http\Controllers\ClientPortal\ClientPortalController::class, 'attendanceHistory'])->name('history');
+        Route::get('/profile', [\App\Http\Controllers\ClientPortal\ClientPortalController::class, 'profile'])->name('profile');
+        Route::post('/profile/password', [\App\Http\Controllers\ClientPortal\ClientPortalController::class, 'updatePassword'])->name('profile.password');
+        Route::get('/manual', function() { return view('client.client-manual'); })->name('manual');
     });
 
     Route::post('/notifications/{notification}/read', [\App\Http\Controllers\NotificationController::class, 'markAsRead'])->name('notifications.read');

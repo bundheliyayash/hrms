@@ -48,4 +48,14 @@ class EmployeeDetail extends Model
     {
         return $this->belongsTo(User::class);
     }
+
+    public function manager()
+    {
+        return $this->belongsTo(User::class, 'manager_id');
+    }
+
+    public function subordinates()
+    {
+        return $this->hasMany(EmployeeDetail::class, 'manager_id', 'user_id');
+    }
 }

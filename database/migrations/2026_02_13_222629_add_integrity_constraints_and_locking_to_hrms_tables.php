@@ -35,18 +35,7 @@ return new class extends Migration
 
     protected function hasIndex($table, $indexName)
     {
-        $conn = Schema::getConnection();
-        $dbName = $conn->getDatabaseName();
-        
-        $result = DB::select("
-            SELECT count(*) as count
-            FROM information_schema.statistics
-            WHERE table_schema = ?
-            AND table_name = ?
-            AND index_name = ?
-        ", [$dbName, $table, $indexName]);
-
-        return $result[0]->count > 0;
+        return Schema::hasIndex($table, $indexName);
     }
 
     /**

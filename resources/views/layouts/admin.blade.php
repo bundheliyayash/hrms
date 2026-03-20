@@ -298,13 +298,12 @@
                 </a>
                 @endcanany
                 @can('view_reports')
-                <a href="{{ route('admin.reports.index') }}" class="list-group-item list-group-item-action {{ request()->routeIs('admin.reports.*') ? 'active' : '' }}">
+                <a href="{{ route('admin.reports.index') }}" class="list-group-item list-group-item-action {{ (request()->routeIs('admin.reports.*') && !request()->routeIs('admin.reports.guide') && !request()->routeIs('admin.reports.admin-manual')) ? 'active' : '' }}">
                     <i class="bi bi-file-earmark-spreadsheet-fill"></i> All Reports
                 </a>
                 @endcan
                 @endcanany
 
-                {{-- System & Admin --}}
                 @canany(['manage_settings', 'manage_rbac', 'view_activity_logs'])
                 <div class="sidebar-section-title">Administration</div>
                 @can('manage_rbac')
@@ -322,6 +321,12 @@
                     <i class="bi bi-clock-history"></i> Audit Trails
                 </a>
                 @endcan
+                <a href="{{ route('admin.reports.guide') }}" class="list-group-item list-group-item-action {{ request()->routeIs('admin.reports.guide') ? 'active' : '' }}">
+                    <i class="bi bi-info-circle-fill"></i> Admin Guide
+                </a>
+                <a href="{{ route('admin.reports.admin-manual') }}" class="list-group-item list-group-item-action {{ request()->routeIs('admin.reports.admin-manual') ? 'active' : '' }}">
+                    <i class="bi bi-journal-text"></i> Admin Manual
+                </a>
                 @endcanany
 
                 {{-- Employee Self Service --}}

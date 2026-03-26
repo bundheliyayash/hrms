@@ -3,10 +3,13 @@
 namespace App\Http\Controllers\Employee;
 
 use App\Http\Controllers\Controller;
+use App\Mail\AttendanceCorrectionRequested;
 use App\Models\Attendance;
+use App\Models\User;
 use Carbon\Carbon;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\Mail;
 
 class AttendanceController extends Controller
 {
@@ -403,6 +406,12 @@ class AttendanceController extends Controller
             'warning',
             'attendance'
         );
+
+        // Send email to all admins
+        $admins = User::where('role', 'admin')->get();
+        foreach ($admins as $admin) {
+            Mail::to($admin->email)->send(new AttendanceCorrectionRequested($correction, $user));
+        }
 
         return redirect()->back()->with('success', 'Correction request submitted successfully. Admin will review your request.');
     }

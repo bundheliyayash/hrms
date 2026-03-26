@@ -3,9 +3,12 @@
 namespace App\Http\Controllers\Employee;
 
 use App\Http\Controllers\Controller;
+use App\Mail\LeaveRequested;
 use App\Models\Leave;
+use App\Models\User;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\Mail;
 
 class LeaveController extends Controller
 {
@@ -85,6 +88,12 @@ class LeaveController extends Controller
             'info',
             'leaves'
         );
+
+        // Send email to all admins
+        $admins = User::where('role', 'admin')->get();
+        foreach ($admins as $admin) {
+            Mail::to($admin->email)->send(new LeaveRequested($leave, Auth::user()));
+        }
 
         return redirect()->route('employee.leaves.index')->with('success', 'Leave application submitted successfully. Awaiting approval.');
     }

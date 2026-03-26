@@ -3,12 +3,14 @@
 namespace App\Http\Controllers\Admin;
 
 use App\Http\Controllers\Controller;
+use App\Mail\WelcomeEmployee;
 use App\Models\EmployeeDetail;
 use App\Models\User;
 use App\Models\ClientSite;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Mail;
 
 class EmployeeController extends Controller
 {
@@ -96,6 +98,10 @@ class EmployeeController extends Controller
                     'change_reason' => 'Initial Salary'
                 ]);
             }
+
+            // Send welcome email to new employee
+            $detail = EmployeeDetail::where('user_id', $user->id)->first();
+            Mail::to($user->email)->send(new WelcomeEmployee($user, $detail, $validated['password']));
         });
 
         return redirect()->route('admin.employees.index')->with('success', 'Employee created successfully.');

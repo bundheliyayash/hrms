@@ -81,12 +81,16 @@ class ClientAttendance extends Component
         $existingByUser = $existing->keyBy('user_id');
 
         $this->existingRecords = $existing->map(fn($a) => [
-            'id'        => $a->id,
-            'user_id'   => $a->user_id,
-            'name'      => $a->user->name ?? 'Unknown',
-            'clock_in'  => $a->clock_in  ? Carbon::parse($a->clock_in)->format('H:i')  : '',
-            'clock_out' => $a->clock_out ? Carbon::parse($a->clock_out)->format('H:i') : '',
-            'is_locked' => (bool) $a->is_locked,
+            'id'               => $a->id,
+            'user_id'          => $a->user_id,
+            'name'             => $a->user->name ?? 'Unknown',
+            'employee_id'      => $a->user->employeeDetail->employee_id ?? '',
+            'designation'      => $a->user->employeeDetail->designation ?? 'Staff',
+            'clock_in'         => $a->clock_in  ? Carbon::parse($a->clock_in)->format('H:i')  : '',
+            'clock_out'        => $a->clock_out ? Carbon::parse($a->clock_out)->format('H:i') : '',
+            'duration_minutes' => $a->duration_minutes,
+            'status'           => $a->status,
+            'is_locked'        => (bool) $a->is_locked,
         ])->values()->toArray();
 
         $pendingIds = array_diff($allowedIds, $existingByUser->keys()->toArray());

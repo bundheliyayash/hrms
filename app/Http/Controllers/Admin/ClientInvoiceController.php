@@ -3,12 +3,14 @@
 namespace App\Http\Controllers\Admin;
 
 use App\Http\Controllers\Controller;
+use App\Mail\InvoiceSentToClient;
 use App\Models\ClientInvoice;
 use App\Models\Contract;
 use App\Models\Client;
 use App\Models\Attendance;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Mail;
 use Barryvdh\DomPDF\Facade\Pdf;
 
 class ClientInvoiceController extends Controller
@@ -167,10 +169,15 @@ class ClientInvoiceController extends Controller
         }
 
         $invoice->markAsSent();
-        
-        // Todo: Add email logic here
-        
-        return back()->with('success', 'Invoice marked as sent.');
+        $invoice->load('client');
+
+        // Send invoice email to client
+        $clientEmail = $invoice->client->email ?? null;
+        if ($clientEmail) {
+            Mail::to($clientEmail)->send(new InvoiceSentToClient($invoice));
+        }
+
+        return back()->with('success', 'Invoice marked as sent' . ($clientEmail ? ' and emailed to client.' : '.'));
     }
 
     /**

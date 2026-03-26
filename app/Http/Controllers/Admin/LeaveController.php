@@ -3,8 +3,10 @@
 namespace App\Http\Controllers\Admin;
 
 use App\Http\Controllers\Controller;
+use App\Mail\LeaveStatusUpdated;
 use App\Models\Leave;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Mail;
 
 class LeaveController extends Controller
 {
@@ -72,6 +74,9 @@ class LeaveController extends Controller
             $request->status === 'approved' ? 'success' : 'danger',
             'leaves'
         );
+
+        // Send email to employee
+        Mail::to($leave->user->email)->send(new LeaveStatusUpdated($leave, auth()->user()));
 
         return redirect()->back()->with('success', 'Leave status updated and employee notified.');
     }

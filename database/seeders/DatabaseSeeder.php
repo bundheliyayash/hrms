@@ -2,7 +2,6 @@
 
 namespace Database\Seeders;
 
-use App\Models\User;
 use Illuminate\Database\Console\Seeds\WithoutModelEvents;
 use Illuminate\Database\Seeder;
 
@@ -36,8 +35,7 @@ class DatabaseSeeder extends Seeder
         // 4. User Interface Structure
         $this->call(MenuSeeder::class);
 
-        // 5. Operational Data (Dependent on Users/Employees)
-        // Runs only if employees exist (safe to keep)
-        $this->call(LeaveAllocationSeeder::class);
+        // 5. Full Demo Data (clients, employees, attendance, payroll, leaves, etc.)
+        $this->call(DemoDataSeeder::class);
     }
 }

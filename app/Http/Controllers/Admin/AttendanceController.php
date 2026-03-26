@@ -3,11 +3,13 @@
 namespace App\Http\Controllers\Admin;
 
 use App\Http\Controllers\Controller;
+use App\Mail\AttendanceCorrectionHandled;
 use App\Models\Attendance;
 use App\Models\AttendanceCorrection;
 use App\Models\User;
 use Carbon\Carbon;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Mail;
 
 class AttendanceController extends Controller
 {
@@ -352,6 +354,10 @@ class AttendanceController extends Controller
             $request->status === 'approved' ? 'success' : 'danger',
             'attendance'
         );
+
+        // Send email to employee
+        $correction->load('user');
+        Mail::to($correction->user->email)->send(new AttendanceCorrectionHandled($correction, $handler));
 
         return redirect()->back()->with('success', 'Request ' . $request->status . ' successfully.');
     }

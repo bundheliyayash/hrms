@@ -107,6 +107,21 @@
                     </div>
 
                     <div class="col-md-4">
+                        <label class="form-label fw-bold">Statutory Deductions</label>
+                        <div class="d-flex gap-4 mt-1">
+                            <div class="form-check form-switch">
+                                <input class="form-check-input" type="checkbox" name="is_pf_applicable" value="1" id="is_pf" {{ old('is_pf_applicable', '1') ? 'checked' : '' }}>
+                                <label class="form-check-label" for="is_pf">PF Applicable</label>
+                            </div>
+                            <div class="form-check form-switch">
+                                <input class="form-check-input" type="checkbox" name="is_esi_applicable" value="1" id="is_esi" {{ old('is_esi_applicable', '1') ? 'checked' : '' }}>
+                                <label class="form-check-label" for="is_esi">ESI Applicable</label>
+                            </div>
+                        </div>
+                        <div class="form-text">Uncheck to exempt employee from PF/ESI deduction.</div>
+                    </div>
+
+                    <div class="col-md-4">
                         <label for="role_id" class="form-label fw-bold text-primary">System Role</label>
                         <select name="role_id" id="role_id" class="form-select border-primary" required>
                             @foreach($roles as $role)

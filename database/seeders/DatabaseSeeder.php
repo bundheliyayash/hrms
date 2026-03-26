@@ -23,6 +23,7 @@ class DatabaseSeeder extends Seeder
         // 1. System Configuration & Static Data
         $this->call([
             SettingsSeeder::class,
+            PayrollConfigSeeder::class,
             ShiftsSeeder::class,
         ]);
 

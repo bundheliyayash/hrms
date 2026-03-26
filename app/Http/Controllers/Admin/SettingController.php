@@ -47,7 +47,20 @@ class SettingController extends Controller
             'notify_payroll' => Setting::where('key', 'notify_payroll')->first()?->value ?? '1'
         ];
 
-        return view('admin.settings.index', compact('profileFields', 'permissions', 'generalSettings', 'notifConfig'));
+        // Payroll Config
+        $payrollConfig = [
+            'pf_percentage'               => Setting::get('pf_percentage', 12),
+            'pf_employer_percentage'      => Setting::get('pf_employer_percentage', 13),
+            'esi_percentage'              => Setting::get('esi_percentage', 0.75),
+            'esi_employer_percentage'     => Setting::get('esi_employer_percentage', 3.25),
+            'pt_amount'                   => Setting::get('pt_amount', 200),
+            'hra_percentage'              => Setting::get('hra_percentage', 10),
+            'washing_allowance_percentage'=> Setting::get('washing_allowance_percentage', 5),
+            'gst_percentage'              => Setting::get('gst_percentage', 18),
+            'working_hours_per_day'       => Setting::get('working_hours_per_day', 8),
+        ];
+
+        return view('admin.settings.index', compact('profileFields', 'permissions', 'generalSettings', 'notifConfig', 'payrollConfig'));
     }
 
     /**
@@ -87,6 +100,38 @@ class SettingController extends Controller
 
         \Illuminate\Support\Facades\Cache::forget('app_settings');
         return redirect()->back()->with('success', 'General settings updated successfully.');
+    }
+
+    /**
+     * Update payroll configuration settings.
+     */
+    public function updatePayrollConfig(Request $request)
+    {
+        $request->validate([
+            'pf_percentage'               => 'required|numeric|min:0|max:100',
+            'pf_employer_percentage'      => 'required|numeric|min:0|max:100',
+            'esi_percentage'              => 'required|numeric|min:0|max:100',
+            'esi_employer_percentage'     => 'required|numeric|min:0|max:100',
+            'pt_amount'                   => 'required|numeric|min:0',
+            'hra_percentage'              => 'required|numeric|min:0|max:100',
+            'washing_allowance_percentage'=> 'required|numeric|min:0|max:100',
+            'gst_percentage'              => 'required|numeric|min:0|max:100',
+            'working_hours_per_day'       => 'required|integer|min:1|max:24',
+        ]);
+
+        $keys = [
+            'pf_percentage', 'pf_employer_percentage',
+            'esi_percentage', 'esi_employer_percentage',
+            'pt_amount', 'hra_percentage', 'washing_allowance_percentage',
+            'gst_percentage', 'working_hours_per_day',
+        ];
+
+        foreach ($keys as $key) {
+            Setting::set($key, $request->input($key), 'payroll', 'float');
+        }
+
+        \Illuminate\Support\Facades\Cache::forget('app_settings');
+        return redirect()->back()->with('success', 'Payroll configuration updated successfully.');
     }
 
     /**

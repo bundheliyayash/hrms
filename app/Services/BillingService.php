@@ -5,6 +5,7 @@ namespace App\Services;
 use App\Models\ClientInvoice;
 use App\Models\Contract;
 use App\Models\Attendance;
+use App\Models\Setting;
 use Illuminate\Support\Facades\DB;
 
 class BillingService
@@ -32,7 +33,7 @@ class BillingService
             'billing_period_start' => $startDate,
             'billing_period_end' => $endDate,
             'rate_per_day' => $contract->rate_per_day,
-            'tax_percentage' => 18, // Default tax
+            'tax_percentage' => (float) Setting::get('gst_percentage', 18),
             'status' => 'draft',
             'generated_by' => $generatedBy,
         ]);
@@ -50,8 +51,9 @@ class BillingService
 
             // Calculation strategy based on billing type
             $hours = $attendance->duration_minutes / 60;
+            $workingHours = (float) Setting::get('working_hours_per_day', 8) ?: 8;
             $days = match($contract->billing_type) {
-                'per_service' => $hours / 8,
+                'per_service' => $hours / $workingHours,
                 default => 1 // per_day or per_month
             };
 

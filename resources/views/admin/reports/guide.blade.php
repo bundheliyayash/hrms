@@ -37,8 +37,8 @@
                         <code>Net Salary = (Basic + Allowances) - (PF + ESI + Other Deductions)</code>
                     </div>
                     <ul class="list-group list-group-flush">
-                        <li class="list-group-item bg-transparent"><b>PF:</b> 12% of basic salary.</li>
-                        <li class="list-group-item bg-transparent"><b>ESI:</b> 0.75% of total earnings.</li>
+                        <li class="list-group-item bg-transparent"><b>PF:</b> {{ \App\Models\Setting::get('pf_percentage', 12) }}% of basic salary.</li>
+                        <li class="list-group-item bg-transparent"><b>ESI:</b> {{ \App\Models\Setting::get('esi_percentage', 0.75) }}% of total earnings.</li>
                     </ul>
                 </section>
 

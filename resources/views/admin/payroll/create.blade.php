@@ -90,12 +90,12 @@
                     </div>
 
                     <div class="col-md-3">
-                        <label class="form-label text-danger small">PF Deduction (12%)</label>
+                        <label class="form-label text-danger small" id="pf_label">PF Deduction</label>
                         <input type="number" class="form-control bg-light text-danger border-danger-subtle" name="pf_amount" id="pf_amount" readonly>
                     </div>
 
                     <div class="col-md-3">
-                        <label class="form-label text-danger small">ESI Deduction (0.75%)</label>
+                        <label class="form-label text-danger small" id="esi_label">ESI Deduction</label>
                         <input type="number" class="form-control bg-light text-danger border-danger-subtle" name="esi_amount" id="esi_amount" readonly>
                     </div>
 
@@ -234,6 +234,21 @@
 
                 pfAmountOut.value = data.pf_amount;
                 esiAmountOut.value = data.esi_amount;
+
+                // Update labels with actual percentages
+                document.getElementById('pf_label').innerText  = `PF Deduction (${data.pf_percentage}%)`;
+                document.getElementById('esi_label').innerText = `ESI Deduction (${data.esi_percentage}%)`;
+
+                // Auto-fill defaults from settings
+                hraIn.value      = data.hra_default ?? 0;
+                washingIn.value  = data.washing_default ?? 0;
+                ptIn.value       = data.pt_default ?? 0;
+
+                // Auto-fill pending advance for this payroll month
+                if (data.advance_default > 0) {
+                    advanceIn.value = data.advance_default;
+                }
+
                 calculateNet();
                 
                 submitBtn.disabled = false;

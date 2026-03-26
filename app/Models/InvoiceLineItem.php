@@ -76,7 +76,8 @@ class InvoiceLineItem extends Model
     // Business Logic Methods
     public function calculateAmount(): void
     {
-        $this->amount = $this->hours_worked * $this->rate / 8; // Assuming 8-hour workday
+        $workingHours = (float) Setting::get('working_hours_per_day', 8) ?: 8;
+        $this->amount = $this->hours_worked * $this->rate / $workingHours;
         $this->save();
     }
 }

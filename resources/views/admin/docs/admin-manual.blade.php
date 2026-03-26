@@ -145,9 +145,9 @@
                     <tbody>
                         <tr><td>Per Day Salary</td><td>Basic Salary ÷ Working Days (typically 26)</td></tr>
                         <tr><td>Gross Salary</td><td>Per Day × Present Days + OT Amount + Allowances</td></tr>
-                        <tr><td>PF (Employee)</td><td>12% of Basic</td></tr>
-                        <tr><td>ESIC (Employee)</td><td>0.75% of Gross</td></tr>
-                        <tr><td>Professional Tax</td><td>₹200 if Gross > ₹12,000</td></tr>
+                        <tr><td>PF (Employee)</td><td>{{ \App\Models\Setting::get('pf_percentage', 12) }}% of Basic</td></tr>
+                        <tr><td>ESIC (Employee)</td><td>{{ \App\Models\Setting::get('esi_percentage', 0.75) }}% of Gross</td></tr>
+                        <tr><td>Professional Tax</td><td>₹{{ \App\Models\Setting::get('pt_amount', 200) }} per month</td></tr>
                         <tr><td>Net Salary</td><td>Gross − PF − ESIC − PT − Advance − Other Deductions</td></tr>
                     </tbody>
                 </table>

@@ -54,6 +54,11 @@ Route::middleware(['auth', 'menu.check'])->group(function () {
         Route::post('assignments/import', [\App\Http\Controllers\Admin\AssignmentImportController::class, 'import'])->name('assignments.import.post');
         Route::get('assignments/template', [\App\Http\Controllers\Admin\AssignmentImportController::class, 'downloadTemplate'])->name('assignments.template');
 
+        // Salary Advances
+        Route::resource('salary-advances', \App\Http\Controllers\Admin\SalaryAdvanceController::class)->only(['index', 'create', 'store', 'destroy']);
+        Route::post('salary-advances/{salaryAdvance}/approve', [\App\Http\Controllers\Admin\SalaryAdvanceController::class, 'approve'])->name('salary-advances.approve');
+        Route::post('salary-advances/{salaryAdvance}/reject',  [\App\Http\Controllers\Admin\SalaryAdvanceController::class, 'reject'])->name('salary-advances.reject');
+
         // Manager specific route
         Route::get('manager/dashboard', [\App\Http\Controllers\Manager\DashboardController::class, 'index'])->name('manager.dashboard');
 
@@ -64,6 +69,7 @@ Route::middleware(['auth', 'menu.check'])->group(function () {
             Route::post('/settings/profile-permissions', [\App\Http\Controllers\Admin\SettingController::class, 'updateProfilePermissions'])->name('settings.update-profile-permissions');
             Route::post('/settings/general', [\App\Http\Controllers\Admin\SettingController::class, 'updateGeneralSettings'])->name('settings.update-general');
             Route::post('/settings/notifications', [\App\Http\Controllers\Admin\SettingController::class, 'updateNotificationSettings'])->name('settings.update-notifications');
+            Route::post('/settings/payroll-config', [\App\Http\Controllers\Admin\SettingController::class, 'updatePayrollConfig'])->name('settings.update-payroll-config');
         });
 
 

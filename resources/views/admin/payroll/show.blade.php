@@ -60,12 +60,16 @@
                                 <td>Other Deductions</td>
                                 <td class="text-end text-danger">- ₹{{ number_format($payroll->deductions, 2) }}</td>
                             </tr>
+                            @php
+                                $pfPct  = \App\Models\Setting::get('pf_percentage', 12);
+                                $esiPct = \App\Models\Setting::get('esi_percentage', 0.75);
+                            @endphp
                             <tr>
-                                <td>PF Deduction (12%)</td>
+                                <td>PF Deduction ({{ $pfPct }}%)</td>
                                 <td class="text-end text-danger">- ₹{{ number_format($payroll->pf_amount, 2) }}</td>
                             </tr>
                             <tr>
-                                <td>ESI Deduction (0.75%)</td>
+                                <td>ESI Deduction ({{ $esiPct }}%)</td>
                                 <td class="text-end text-danger">- ₹{{ number_format($payroll->esi_amount, 2) }}</td>
                             </tr>
                             <tr class="table-active">

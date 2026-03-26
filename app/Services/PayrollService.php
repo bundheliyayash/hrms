@@ -185,7 +185,8 @@ class PayrollService
                 $totalOtHours += $extraHours;
 
                 // OT Pay = (Per Hour Salary * OT Multiplier) * Extra Hours
-                $perHourSalary = $perDaySalary / 8; // Assuming 8-hour day for rate calc
+                $workingHours = (float) Setting::get('working_hours_per_day', 8);
+                $perHourSalary = $perDaySalary / ($workingHours ?: 8);
                 $otRate = $perHourSalary * $contract->ot_multiplier;
                 $otEarnings += ($otRate * $extraHours);
             }
@@ -193,28 +194,47 @@ class PayrollService
 
         // 9. Statutory Deductions (Deducted from Base Earnings + OT)
         $grossTotal = $baseEarnings + $otEarnings;
-        $pfPercentage = Setting::where('key', 'pf_percentage')->first()->value ?? 12;
-        $esiPercentage = Setting::where('key', 'esi_percentage')->first()->value ?? 0.75;
+        $pfPercentage  = (float) Setting::get('pf_percentage', 12);
+        $esiPercentage = (float) Setting::get('esi_percentage', 0.75);
 
-        $pfAmount = round(($grossTotal * $pfPercentage) / 100, 2);
+        // Respect per-employee PF/ESI eligibility
+        $detail = $user->employeeDetail;
+        if (isset($detail->is_pf_applicable) && !$detail->is_pf_applicable) {
+            $pfPercentage = 0;
+        }
+        if (isset($detail->is_esi_applicable) && !$detail->is_esi_applicable) {
+            $esiPercentage = 0;
+        }
+
+        $pfAmount  = round(($grossTotal * $pfPercentage) / 100, 2);
         $esiAmount = round(($grossTotal * $esiPercentage) / 100, 2);
 
+        // 10. Default allowances from settings
+        $hraDefault      = round($basicSalary * (float) Setting::get('hra_percentage', 10) / 100, 2);
+        $washingDefault  = round($basicSalary * (float) Setting::get('washing_allowance_percentage', 5) / 100, 2);
+        $ptDefault       = (float) Setting::get('pt_amount', 200);
+
         return [
-            'basic_salary' => $basicSalary,
-            'total_days' => $totalDays,
-            'present_days' => count($presentDates),
-            'half_days' => count($halfDayDates),
+            'basic_salary'    => $basicSalary,
+            'total_days'      => $totalDays,
+            'present_days'    => count($presentDates),
+            'half_days'       => count($halfDayDates),
             'paid_leave_days' => count($paidLeaveDates),
             'unpaid_leave_days' => $unpaidLeaveDays,
-            'paid_holidays' => count($paidHolidayDates),
+            'paid_holidays'   => count($paidHolidayDates),
             'unpaid_holidays' => $unpaidHolidays,
-            'payable_days' => $payableDays,
-            'per_day_salary' => round($perDaySalary, 2),
-            'base_earnings' => round($baseEarnings, 2),
-            'ot_hours' => round($totalOtHours, 2),
-            'ot_earnings' => round($otEarnings, 2),
-            'pf_amount' => $pfAmount,
-            'esi_amount' => $esiAmount,
+            'payable_days'    => $payableDays,
+            'per_day_salary'  => round($perDaySalary, 2),
+            'base_earnings'   => round($baseEarnings, 2),
+            'ot_hours'        => round($totalOtHours, 2),
+            'ot_earnings'     => round($otEarnings, 2),
+            'pf_amount'       => $pfAmount,
+            'esi_amount'      => $esiAmount,
+            'pf_percentage'   => $pfPercentage,
+            'esi_percentage'  => $esiPercentage,
+            'hra_default'     => $hraDefault,
+            'washing_default' => $washingDefault,
+            'pt_default'      => $ptDefault,
         ];
     }
 

@@ -9,6 +9,7 @@ use App\Models\ClientSite;
 use App\Models\DailyAssignment;
 use App\Models\EmployeeDetail;
 use App\Models\Payroll;
+use App\Models\Setting;
 use Carbon\Carbon;
 use Illuminate\Http\Request;
 use PhpOffice\PhpSpreadsheet\Spreadsheet;
@@ -206,13 +207,16 @@ class ClientReportExportController extends Controller
         $ps->getStyle('A10:C10')->getFont()->setBold(true);
         $ps->getStyle('A10:C10')->getFill()->setFillType(Fill::FILL_SOLID)->getStartColor()->setARGB('FFE0E0');
 
+        $pfPct  = Setting::get('pf_percentage', 12);
+        $esiPct = Setting::get('esi_percentage', 0.75);
+
         $ps->setCellValue('A11', 'PF (Employee)');
         $ps->setCellValue('B11', $p->pf_amount);
-        $ps->setCellValue('C11', '12% of Basic');
+        $ps->setCellValue('C11', $pfPct . '% of Basic');
 
         $ps->setCellValue('A12', 'ESIC (Employee)');
         $ps->setCellValue('B12', $p->esi_amount);
-        $ps->setCellValue('C12', '0.75% of Gross');
+        $ps->setCellValue('C12', $esiPct . '% of Gross');
 
         $ps->setCellValue('A13', 'Professional Tax');
         $ps->setCellValue('B13', $p->pt_amount);
@@ -230,17 +234,19 @@ class ClientReportExportController extends Controller
         $ps->getStyle('A16:B16')->getFont()->setBold(true);
         $ps->getStyle('B16')->getFill()->setFillType(Fill::FILL_SOLID)->getStartColor()->setARGB('D4EDDA');
 
-        // Employer contributions
-        $empPf   = round($p->basic_salary * 0.13, 2);
-        $empEsic = round(($p->gross_salary ?? 0) * 0.0325, 2);
+        // Employer contributions (from settings)
+        $empPfPct   = (float) Setting::get('pf_employer_percentage', 13);
+        $empEsiPct  = (float) Setting::get('esi_employer_percentage', 3.25);
+        $empPf      = round($p->basic_salary * $empPfPct / 100, 2);
+        $empEsic    = round(($p->gross_salary ?? 0) * $empEsiPct / 100, 2);
 
         $ps->setCellValue('A17', '-- Employer Contributions --');
         $ps->getStyle('A17')->getFont()->setItalic(true)->setColor(new Color('888888'));
 
-        $ps->setCellValue('A18', 'PF (Employer 13%)');
+        $ps->setCellValue('A18', 'PF (Employer ' . $empPfPct . '%)');
         $ps->setCellValue('B18', $empPf);
 
-        $ps->setCellValue('A19', 'ESIC (Employer 3.25%)');
+        $ps->setCellValue('A19', 'ESIC (Employer ' . $empEsiPct . '%)');
         $ps->setCellValue('B19', $empEsic);
 
         $ps->setCellValue('A20', 'CTC');

@@ -4,12 +4,14 @@ namespace App\Http\Controllers\Admin;
 
 use App\Http\Controllers\Controller;
 use App\Models\Payroll;
+use App\Models\SalaryAdvance;
 use App\Models\User;
 use App\Models\Attendance;
 use App\Models\Leave;
 use App\Services\HolidayService;
 use Carbon\Carbon;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\DB;
 
 class PayrollController extends Controller
@@ -47,7 +49,17 @@ class PayrollController extends Controller
             $user = User::findOrFail($userId);
 
             $stats = $payrollService->calculateSalary($user, $date->month, $date->year);
-            
+
+            // Auto-fill pending advance for this recovery month
+            $recoveryMonthStart = $date->copy()->startOfMonth()->format('Y-m-d');
+            $pendingAdvance = \App\Models\SalaryAdvance::where('user_id', $userId)
+                ->where('status', 'approved')
+                ->whereDate('recovery_month', $recoveryMonthStart)
+                ->where('recovered_amount', '<', \Illuminate\Support\Facades\DB::raw('amount'))
+                ->sum(\Illuminate\Support\Facades\DB::raw('amount - recovered_amount'));
+
+            $stats['advance_default'] = round($pendingAdvance, 2);
+
             return response()->json($stats);
         } catch (\Exception $e) {
             return response()->json([
@@ -135,6 +147,30 @@ class PayrollController extends Controller
                               ->orWhereBetween('end_date', [$startDate, $endDate]);
                     })
                     ->update(['is_locked' => true]);
+
+                // Mark salary advances as recovered for this month
+                $advanceDeducted = $validated['advance_amount'] ?? 0;
+                if ($advanceDeducted > 0) {
+                    $pendingAdvances = SalaryAdvance::where('user_id', $validated['user_id'])
+                        ->where('status', 'approved')
+                        ->whereDate('recovery_month', $startDate)
+                        ->whereColumn('recovered_amount', '<', 'amount')
+                        ->get();
+
+                    $remaining = $advanceDeducted;
+                    foreach ($pendingAdvances as $adv) {
+                        if ($remaining <= 0) break;
+                        $toRecover = min($adv->pending_amount, $remaining);
+                        $newRecovered = $adv->recovered_amount + $toRecover;
+                        $newStatus = $newRecovered >= $adv->amount ? 'recovered' : 'approved';
+                        $adv->update([
+                            'recovered_amount' => $newRecovered,
+                            'status'           => $newStatus,
+                            'payroll_id'       => $payroll->id,
+                        ]);
+                        $remaining -= $toRecover;
+                    }
+                }
             });
 
             return redirect()->route('admin.payroll.index')->with('success', 'Payroll generated successfully for ' . $validated['month'] . ' ' . $validated['year']);

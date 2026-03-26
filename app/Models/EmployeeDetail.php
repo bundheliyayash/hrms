@@ -23,6 +23,8 @@ class EmployeeDetail extends Model
         'employment_type',
         'joining_date',
         'basic_salary',
+        'is_pf_applicable',
+        'is_esi_applicable',
         'bank_name',
         'account_number',
         'ifsc_code',
@@ -33,6 +35,11 @@ class EmployeeDetail extends Model
     ];
 
     public $logEvents = ['updated'];
+
+    protected $casts = [
+        'is_pf_applicable'  => 'boolean',
+        'is_esi_applicable' => 'boolean',
+    ];
 
     public function site()
     {
